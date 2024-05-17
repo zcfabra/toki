@@ -1,0 +1,101 @@
+-- Structs > Classes
+struct Point:
+    x: int
+    y: int 
+    def sum(self) -> int:
+        return self.x + self.y
+
+
+-- Mostly optional type hints (types can often be inferred)
+x: int = math.rand()
+
+
+-- Immutable by default (must opt-in)
+t: mut int = x + 10
+t += 10
+
+t: mut = 10
+
+
+if x > t:
+    vals = [x for x in range(t + 10)]
+else:
+    -- Ocaml-style pipe operators
+    x
+    |> double
+    |> print
+
+
+-- Assignment blocks
+average =:
+    els := [i for i in range(10)]
+    | map(double)
+    |> sum
+    |> op.div(len(els))
+    
+
+
+-- Method chaining (for methods that don't return)
+Point(x=10, y=10)
+|. double
+|. square
+
+
+-- Method chaining (for methods that do return)
+Point(x=10, y=10)
+|.get_sum
+|> save_sum -- Not a method
+
+
+-- Capture variables 
+Point(x=10, y=10)
+|[p]
+|.get_sum
+|> p.set_sum
+
+
+-- Can also use pipe captures when the function you want to pipe into a 
+-- fn argument that is not first
+Point(x=10, y=20)
+|.get_sum
+|[sum]:
+    function_with_higher_arity(first_arg, second_arg, sum)
+|?
+
+
+-- Toki does not have exceptions - ALL ERRORS ARE VALUES
+fn_that_can_err()
+|! -- Stops the pipe and returns the error value
+|[good_val]:
+    print(f"Found an valid result: {good_val}")
+
+
+-- The pipe module also has syntax for handling errors. The error value cannot
+-- be piped onwards directly if the `|!` operator is used.
+-- The forced indent differentiates errors from normal pipe flow 
+
+fn_that_can_err()
+|! [e]:
+    map_err_to_valid_result(e)
+    |$  -- Print the error before returning it
+|[good_val]
+|$ 
+
+
+-- If you want to recover from an error and continue piping, match on the Result
+fn_that_can_err()
+| match:
+    Ok(good_val): good_val
+    Err(e): map_err_to_valid(e)
+|> continue_on
+
+
+-- There is also sugar for propagating an Ok and handling an Err only 
+fn_that_can_err()
+| handle [e]:
+    map_err_to_valid(e)
+
+
+
+if good_val := could_err_and_return_none()!?:
+    print(good_val)
