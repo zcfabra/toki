@@ -1,3 +1,5 @@
+use std::fmt::{Display, Write};
+
 #[derive(Debug)]
 pub enum TokenType {
     Add,
@@ -66,6 +68,7 @@ pub struct Tokenizer {
     l: usize,
     r: usize,
 }
+
 impl Tokenizer {
     pub fn new(src: String) -> Self {
         let chars: Vec<char> = src.chars().collect();
@@ -163,12 +166,12 @@ impl Tokenizer {
                 }
                 '|' => {
                     let token = match self.get_next_char() {
-                       Some('>') => self.get_long_op(TokenType::Pipe),
-                       Some('.') => self.get_long_op(TokenType::PipeMethod),
-                       Some('?') => self.get_long_op(TokenType::PipeDebug),
-                       Some('*') => self.get_long_op(TokenType::PipeOk),
-                       Some('!') => self.get_long_op(TokenType::PipeErr),
-                       _ => self.get_char_op(ch, TokenType::Bar),
+                        Some('>') => self.get_long_op(TokenType::Pipe),
+                        Some('.') => self.get_long_op(TokenType::PipeMethod),
+                        Some('?') => self.get_long_op(TokenType::PipeDebug),
+                        Some('*') => self.get_long_op(TokenType::PipeOk),
+                        Some('!') => self.get_long_op(TokenType::PipeErr),
+                        _ => self.get_char_op(ch, TokenType::Bar),
                     };
                     tokens.push(token);
                 }
@@ -214,7 +217,8 @@ impl Tokenizer {
         }
         let literal = self.src[self.l..self.r].iter().collect();
         self.l = self.r;
-        let token_type = Tokenizer::get_keyword(&literal).unwrap_or(TokenType::Identifier);
+        let token_type = 
+            Tokenizer::get_keyword(&literal).unwrap_or(TokenType::Identifier);
         return Token::new(literal, token_type);
     }
     pub fn get_keyword(literal: &String) -> Option<TokenType> {
@@ -271,5 +275,11 @@ impl Token {
             val: literal,
             ttype: ttype,
         };
+    }
+}
+
+impl Display for Token {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        return f.write_fmt(format_args!("[ {:?}: {:?} ]", self.ttype, self.val));
     }
 }

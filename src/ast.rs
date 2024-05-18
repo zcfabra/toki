@@ -1,17 +1,25 @@
-trait Node {
-    fn get_token() -> String;
-    fn repr() -> String;
+use crate::token::Token;
+
+pub trait Node {
+    fn repr(&self) -> &String;
+    fn eval(&self) -> impl Node;
 }
 
-#[derive(Node)]
-pub struct BinaryExpr{
-    l: Box<impl Node>,
-    r: Box<impl Node>
-}
+/*
+Expressions:
+1. Binary
+2. Unary
+3. Literal
+4. Walrus?
+5. Pipe
+*/
 
-impl BinaryExpr {
-    fn thing(&self) -> () {
-        self.repr();
-    }
 
-}
+/* 
+Statements:
+1. Assignment
+2. Block 
+3. If 
+4. Return
+5. Switch
+*/

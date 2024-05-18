@@ -63,7 +63,7 @@ Point(x=10, y=20)
 |?
 
 
--- Toki does not have exceptions - ALL ERRORS ARE VALUES
+-- Errors are values -- no exceptions (pun intended)
 fn_that_can_err()
 |! -- Stops the pipe and returns the error value
 |[good_val]:

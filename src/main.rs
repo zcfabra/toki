@@ -1,5 +1,7 @@
-pub mod tokenizer;
-use tokenizer::Tokenizer;
+pub mod token;
+pub mod ast;
+
+use token::Tokenizer;
 
 fn main() {
     let src =
@@ -38,7 +40,7 @@ if good_val := could_return_none():
         .tokenize()
         .expect("Failed to tokenize");
     for tok in tokens{
-        println!("{:?}", tok);
+        println!("{}", tok);
     }
     // let ast = Parser::new(tokens).parse();
     // let result = Evaluator::new(ast).eval();
