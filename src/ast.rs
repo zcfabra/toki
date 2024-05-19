@@ -82,3 +82,48 @@ Statements:
 5. Switch
 6. Fn declaration
 */
+
+
+pub struct Identifier {
+    token: Token
+}
+impl Identifier {
+    pub fn new(token: Token) -> Self {
+        return Identifier {token: token}
+    }
+}
+
+impl Node for Identifier {
+    fn eval(self) -> Box<dyn Node> {
+        return Box::new(self);
+    }
+    fn repr(&self) -> String {
+        return format!("{}", self.token.val);
+    }
+}
+
+pub struct AssignmentStmt {
+    identifier: Identifier,
+    expr: Box<dyn Node> 
+}
+
+impl AssignmentStmt {
+    pub fn new(identifier: Identifier, expression: Box<dyn Node>) -> Self {
+        return AssignmentStmt{
+            identifier: identifier,
+            expr: expression
+        }
+    }
+}
+
+impl Node for AssignmentStmt {
+    fn eval(self) -> Box<dyn Node> {
+        return Box::new(self);
+    }
+    fn repr(&self) -> String {
+        let expr_repr = self.expr.as_ref().repr();
+        return format!("{} = {}", self.identifier.repr(), expr_repr);
+
+    }
+
+}

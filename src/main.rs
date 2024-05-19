@@ -37,7 +37,7 @@ if good_val := could_return_none():
 
 
 ");
-    let src = String::from("(1 * (1 - 10)) * 90");
+    let src = String::from("a = (1 * (1 - 10)) * 90");
     let tokens =
         Tokenizer::new(src)
         .tokenize()

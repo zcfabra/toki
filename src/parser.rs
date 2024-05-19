@@ -1,5 +1,5 @@
 use crate::{
-    ast::{BinaryExpr, IntegerNode, Node},
+    ast::{AssignmentStmt, BinaryExpr, Identifier, IntegerNode, Node},
     token::{self, TokenType},
 };
 use token::Token;
@@ -8,6 +8,7 @@ use token::Token;
 pub enum ParseError {
     InvalidTypeData,
     NotImplementedToken(String),
+    ReachedEnd,
 }
 
 pub struct Parser {
@@ -38,8 +39,13 @@ impl Parser {
         self.r += 1;
         self.l = self.r;
     }
-    fn incr_leading(&mut self) {
+    fn incr_leading(&mut self) -> Result<(), ParseError> {
+        if self.r == self.n_tokens {
+            return Err(ParseError::ReachedEnd);
+        }
+
         self.r += 1;
+        return Ok(());
     }
 
     fn incr_trailing(&mut self) {
@@ -61,12 +67,12 @@ impl Parser {
                     let new_precedence = Self::get_precedence(&tok.ttype);
                     if new_precedence < precedence {
                         if node.is_none() {
-                            node = Some(self.get_literal_node()?);
+                            node = Some(self.get_operand_node()?);
                         }
                         return Ok(node.unwrap());
                     }
                     if node.is_none() {
-                        node = Some(self.get_literal_node()?);
+                        node = Some(self.get_operand_node()?);
                     }
                     self.step();
                     node = Some(Self::get_binary_node(
@@ -76,24 +82,33 @@ impl Parser {
                     )?);
                 }
                 TokenType::LParen => {
-                    self.incr_leading();
+                    self.incr_leading()?;
                     node = Some(self.parse(Precedence::Lowest)?);
-                },
+                }
                 TokenType::RParen => {
                     if node.is_none() {
-                        node = Some(self.get_literal_node()?);
+                        node = Some(self.get_operand_node()?);
                     }
-                    self.incr_leading();
+                    self.incr_leading()?;
                     return Ok(node.unwrap());
                 }
+                TokenType::Assignment => {
+                    let identifier: Identifier =
+                        Identifier::new(self.tokens[self.l].clone());
+                    self.step();
+                    let expr = self.parse(Precedence::Lowest)?;
+                    return Ok(Box::new(AssignmentStmt::new(
+                        identifier, expr,
+                    )));
+                }
                 _ => {
-                    self.incr_leading();
+                    self.incr_leading()?;
                 }
             }
         }
 
         if node.is_none() {
-            node = Some(self.get_literal_node()?);
+            node = Some(self.get_operand_node()?);
         }
         return Ok(node.unwrap());
     }
@@ -106,11 +121,24 @@ impl Parser {
         }
     }
 
-    pub fn get_literal_node(&mut self) -> Result<Box<dyn Node>, ParseError> {
-        while self.l < self.n_tokens && self.tokens[self.l].ttype == TokenType::LParen {
+    pub fn get_operand_node(&mut self) -> Result<Box<dyn Node>, ParseError> {
+        while self.l < self.n_tokens
+            && self.tokens[self.l].ttype == TokenType::LParen
+        {
             self.incr_trailing();
         }
-        return Ok(Box::new(IntegerNode::new(self.tokens[self.l].clone())?));
+        let tok = self.tokens[self.l].clone();
+        match tok.ttype {
+            TokenType::Int => {
+                return Ok(Box::new(IntegerNode::new(tok)?));
+            }
+            TokenType::Identifier => {
+                return Ok(Box::new(Identifier::new(tok)))
+            }
+            _ => {
+                return Err(ParseError::InvalidTypeData);
+            }
+        }
     }
 
     pub fn get_binary_node(
