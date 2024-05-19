@@ -1,7 +1,9 @@
-use crate::token::Token;
-use crate::parser::ParseError;
+use std::any::Any;
 
-pub trait Node {
+use crate::parser::ParseError;
+use crate::token::Token;
+
+pub trait Node: Any {
     fn repr(&self) -> String;
     fn eval(self) -> Box<dyn Node>;
 }
@@ -17,7 +19,6 @@ Expressions:
 5. Pipe
 */
 
-
 pub struct IntegerNode {
     token: Token,
     value: i32,
@@ -25,16 +26,17 @@ pub struct IntegerNode {
 
 impl IntegerNode {
     pub fn new(token: Token) -> Result<Self, ParseError> {
-        let int_val: i32 = 
-            token.val
-            .parse::<i32>()
-            .map_err(|_| ParseError::InvalidTypeData)?;
-        return Ok(IntegerNode{
+        let int_val: i32 = token.val.parse::<i32>().map_err(|_| {
+            ParseError::InvalidTypeData(format!(
+                "Failed conversion: {} -> Int",
+                token.val
+            ))
+        })?;
+        return Ok(IntegerNode {
             value: int_val,
             token: token,
         });
     }
-
 }
 
 impl Node for IntegerNode {
@@ -54,7 +56,7 @@ pub struct BinaryExpr {
 
 impl BinaryExpr {
     pub fn new(op_token: Token, l: Box<dyn Node>, r: Box<dyn Node>) -> Self {
-        return BinaryExpr{
+        return BinaryExpr {
             op: op_token,
             l: l,
             r: r,
@@ -67,8 +69,8 @@ impl Node for BinaryExpr {
         return Box::new(self);
     }
     fn repr(&self) -> String {
-        let l = self.l.as_ref().repr();
-        let r = self.r.as_ref().repr();
+        let l = &self.l.repr();
+        let r = &self.r.repr();
         return format!("( {} {} {} )", l, self.op.val, r);
     }
 }
@@ -83,13 +85,12 @@ Statements:
 6. Fn declaration
 */
 
-
 pub struct Identifier {
-    token: Token
+    token: Token,
 }
 impl Identifier {
     pub fn new(token: Token) -> Self {
-        return Identifier {token: token}
+        return Identifier { token: token };
     }
 }
 
@@ -102,17 +103,59 @@ impl Node for Identifier {
     }
 }
 
+pub struct CallStmt {
+    name: Identifier,
+    args: Vec<Box<dyn Node>>,
+}
+impl CallStmt {
+    pub fn new(name: Identifier, args: Vec<Box<dyn Node>>) -> Self {
+        return CallStmt { name, args };
+    }
+}
+impl Node for CallStmt {
+    fn eval(self) -> Box<dyn Node> {
+        return Box::new(self);
+    }
+    fn repr(&self) -> String {
+        let args = self
+            .args
+            .iter()
+            .map(|e| e.repr())
+            .collect::<Vec<String>>()
+            .join(", ");
+        return format!("{}({})", self.name.token.val, args);
+    }
+}
+
+pub struct ReturnStmt {
+    expr: Box<dyn Node>,
+}
+
+impl ReturnStmt {
+    pub fn new(expr: Box<dyn Node>) -> Self {
+        return ReturnStmt { expr };
+    }
+}
+
+impl Node for ReturnStmt {
+    fn eval(self) -> Box<dyn Node> {
+        return Box::new(self);
+    }
+    fn repr(&self) -> String {
+        return format!("return {}", &self.expr.repr());
+    }
+}
 pub struct AssignmentStmt {
     identifier: Identifier,
-    expr: Box<dyn Node> 
+    expr: Box<dyn Node>,
 }
 
 impl AssignmentStmt {
     pub fn new(identifier: Identifier, expression: Box<dyn Node>) -> Self {
-        return AssignmentStmt{
+        return AssignmentStmt {
             identifier: identifier,
-            expr: expression
-        }
+            expr: expression,
+        };
     }
 }
 
@@ -121,9 +164,79 @@ impl Node for AssignmentStmt {
         return Box::new(self);
     }
     fn repr(&self) -> String {
-        let expr_repr = self.expr.as_ref().repr();
+        let expr_repr = &self.expr.repr();
         return format!("{} = {}", self.identifier.repr(), expr_repr);
-
     }
+}
 
+pub struct Statement {}
+
+pub struct BlockStmt {
+    indent: usize,
+    statements: Vec<Box<dyn Node>>,
+}
+impl BlockStmt {
+    pub fn new(indent: usize, statements: Vec<Box<dyn Node>>) -> BlockStmt {
+        return BlockStmt { indent, statements };
+    }
+}
+
+impl Node for BlockStmt {
+    fn eval(self) -> Box<dyn Node> {
+        return Box::new(self);
+    }
+    fn repr(&self) -> String {
+        let spaces = "    ".repeat(self.indent);
+        return self
+            .statements
+            .iter()
+            .map(|e| format!("{}{}", spaces, e.repr()))
+            .collect::<Vec<String>>()
+            .join("\n");
+    }
+}
+
+pub struct FnArg {
+    name: Identifier,
+    // default: Literal
+}
+pub struct FnLiteral {
+    name: Identifier,
+    args: Vec<Identifier>,
+    definition: Box<BlockStmt>,
+}
+
+impl FnLiteral {
+    pub fn new(
+        name: Identifier,
+        args: Vec<Identifier>,
+        definition: Box<BlockStmt>,
+    ) -> Self {
+        return FnLiteral {
+            name,
+            args,
+            definition,
+        };
+    }
+}
+
+impl Node for FnLiteral {
+    fn eval(self) -> Box<dyn Node> {
+        return Box::new(self);
+    }
+    fn repr(&self) -> String {
+        let args: String = self
+            .args
+            .iter()
+            .map(|e| e.repr())
+            .collect::<Vec<String>>()
+            .join(", ");
+
+        return format!(
+            "def {}({}):\n{}",
+            self.name.token.val,
+            args,
+            self.definition.repr()
+        );
+    }
 }

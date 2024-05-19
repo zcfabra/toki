@@ -1,6 +1,6 @@
 use std::fmt::Display;
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum TokenType {
     Add,
     AddEq,
@@ -46,7 +46,10 @@ pub enum TokenType {
     Walrus,
     ReverseWalrus,
     Colon,
-    Indent,
+
+    Indent(usize),
+    Eof,
+
     Newline,
     If,
     In,
@@ -86,24 +89,24 @@ impl Tokenizer {
             let ch = self.src[self.r];
             match ch {
                 ' ' => {
-                    let mut space_count = 0;
                     while self.r < self.src_len && self.src[self.r] == ' ' {
-                        if space_count == 4 {
-                            space_count = 0;
-                            let tab = self.src[self.l..self.r].iter().collect();
-                            tokens.push(Token::new(tab, TokenType::Indent));
-                            self.r += 1;
-                            self.l = self.r;
-                        } else {
-                            space_count += 1;
-                            self.r += 1;
+                        self.r += 1;
+                    }
+
+                    let n_spaces = self.r - self.l;
+                    if n_spaces >= 1 {
+                        if n_spaces % 4 == 0 {
+                            tokens.push(Token::new(
+                                "Indent".to_string(),
+                                TokenType::Indent(n_spaces / 4),
+                            ));
                         }
                     }
+
                     self.l = self.r;
                 }
                 // Indent + Newlines
                 '\n' => tokens.push(self.get_char_op(ch, TokenType::Newline)),
-                '\t' => tokens.push(self.get_char_op(ch, TokenType::Indent)),
                 // Single Char Operators
                 '(' => tokens.push(self.get_char_op(ch, TokenType::LParen)),
                 ')' => tokens.push(self.get_char_op(ch, TokenType::RParen)),
@@ -151,7 +154,9 @@ impl Tokenizer {
                 '=' => {
                     let token = match self.get_next_char() {
                         Some('=') => self.get_long_op(TokenType::Eq),
-                        Some(':') => self.get_long_op(TokenType::ReverseWalrus),
+                        Some(':') => {
+                            self.get_long_op(TokenType::ReverseWalrus)
+                        }
                         _ => self.get_char_op(ch, TokenType::Assignment),
                     };
                     tokens.push(token);
@@ -195,6 +200,7 @@ impl Tokenizer {
                 }
             }
         }
+        tokens.push(Token::new("EOF".to_string(), TokenType::Eof));
         return Ok(tokens);
     }
     pub fn get_next_char(&self) -> Option<char> {
@@ -217,7 +223,8 @@ impl Tokenizer {
         }
         let literal = self.src[self.l..self.r].iter().collect();
         self.l = self.r;
-        let token_type = Tokenizer::get_keyword(&literal).unwrap_or(TokenType::Identifier);
+        let token_type =
+            Tokenizer::get_keyword(&literal).unwrap_or(TokenType::Identifier);
         return Token::new(literal, token_type);
     }
     pub fn get_keyword(literal: &String) -> Option<TokenType> {
@@ -239,7 +246,8 @@ impl Tokenizer {
         };
     }
     pub fn get_numerical_literal(&mut self) -> Token {
-        while self.r < self.src_len && ('0'..='9').contains(&self.src[self.r]) {
+        while self.r < self.src_len && ('0'..='9').contains(&self.src[self.r])
+        {
             self.r += 1;
         }
         let literal = self.src[self.l..self.r].iter().collect();
@@ -279,6 +287,7 @@ impl Token {
 
 impl Display for Token {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        return f.write_fmt(format_args!("[ {:?}: {:?} ]", self.ttype, self.val));
+        return f
+            .write_fmt(format_args!("[ {:?}: {:?} ]", self.ttype, self.val));
     }
 }
