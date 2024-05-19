@@ -1,10 +1,12 @@
 pub mod token;
+pub mod parser;
 pub mod ast;
 
+use parser::{Parser, Precedence};
 use token::Tokenizer;
 
 fn main() {
-    let src =
+    let _ =
         String::from(
 "struct Point:
     x: int
@@ -35,14 +37,23 @@ if good_val := could_return_none():
 
 
 ");
+    let src = String::from("(1 * (1 - 10)) * 90");
     let tokens =
         Tokenizer::new(src)
         .tokenize()
         .expect("Failed to tokenize");
-    for tok in tokens{
-        println!("{}", tok);
+        
+    let mut parser = Parser::new(tokens);
+    let ast = parser.parse(Precedence::Lowest);
+    match ast {
+        Ok(val) => {
+            println!("{:?}", val.as_ref().repr());
+        },
+        Err(e) => {
+            println!("{:?}", e);
+        }
+
     }
-    // let ast = Parser::new(tokens).parse();
     // let result = Evaluator::new(ast).eval();
 
 }

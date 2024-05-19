@@ -1,6 +1,6 @@
-use std::fmt::{Display, Write};
+use std::fmt::Display;
 
-#[derive(Debug)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum TokenType {
     Add,
     AddEq,
@@ -217,8 +217,7 @@ impl Tokenizer {
         }
         let literal = self.src[self.l..self.r].iter().collect();
         self.l = self.r;
-        let token_type = 
-            Tokenizer::get_keyword(&literal).unwrap_or(TokenType::Identifier);
+        let token_type = Tokenizer::get_keyword(&literal).unwrap_or(TokenType::Identifier);
         return Token::new(literal, token_type);
     }
     pub fn get_keyword(literal: &String) -> Option<TokenType> {
@@ -263,10 +262,10 @@ impl Tokenizer {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Token {
-    val: String,
-    ttype: TokenType,
+    pub val: String,
+    pub ttype: TokenType,
 }
 
 impl Token {
