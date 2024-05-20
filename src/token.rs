@@ -10,8 +10,14 @@ pub enum TokenType {
     MulEq,
     Div,
     DivEq,
+
     Eq,
     NotEq,
+    Gt,
+    GtEq,
+    Lt,
+    LtEq,
+
     Or,
     And,
     Dot,
@@ -52,6 +58,7 @@ pub enum TokenType {
 
     Newline,
     If,
+    Else,
     In,
     Range,
     Struct,
@@ -116,7 +123,22 @@ impl Tokenizer {
                 '}' => tokens.push(self.get_char_op(ch, TokenType::RSquare)),
                 ',' => tokens.push(self.get_char_op(ch, TokenType::Comma)),
                 '.' => tokens.push(self.get_char_op(ch, TokenType::Dot)),
-
+                '<' => {
+                    let token = if self.next_char_is('=') {
+                        self.get_long_op(TokenType::LtEq)
+                    } else {
+                        self.get_char_op(ch, TokenType::Lt)
+                    };
+                    tokens.push(token);
+                }
+                '>' => {
+                    let token = if self.next_char_is('=') {
+                        self.get_long_op(TokenType::GtEq)
+                    } else {
+                        self.get_char_op(ch, TokenType::Gt)
+                    };
+                    tokens.push(token);
+                }
                 '+' => {
                     let token = if self.next_char_is('=') {
                         self.get_long_op(TokenType::AddEq)
@@ -201,7 +223,28 @@ impl Tokenizer {
             }
         }
         tokens.push(Token::new("EOF".to_string(), TokenType::Eof));
-        return Ok(tokens);
+        return Ok(Self::make_nice_indents(tokens));
+    }
+    pub fn make_nice_indents(tokens: Vec<Token>) -> Vec<Token> {
+        let mut nice_tokens: Vec<Token> = Vec::new();
+        nice_tokens
+            .push(Token::new("[INDENT]".to_string(), TokenType::Indent(0)));
+        for (ix, tok) in tokens.iter().enumerate() {
+            nice_tokens.push(tok.clone());
+            if tok.ttype == TokenType::Newline && ix + 1 < tokens.len() {
+                match tokens[ix + 1].ttype {
+                    TokenType::Indent(_) => {
+                    }
+                    _ => {
+                        nice_tokens.push(Token::new(
+                            "[INDENT]".to_string(),
+                            TokenType::Indent(0),
+                        ));
+                    }
+                }
+            }
+        }
+        return nice_tokens;
     }
     pub fn get_next_char(&self) -> Option<char> {
         if self.r + 1 < self.src_len {
@@ -235,6 +278,7 @@ impl Tokenizer {
             "or" => Some(TokenType::Or),
             "and" => Some(TokenType::And),
             "if" => Some(TokenType::If),
+            "else" => Some(TokenType::Else),
             "in" => Some(TokenType::In),
             "range" => Some(TokenType::Range),
             "return" => Some(TokenType::Return),
@@ -288,6 +332,6 @@ impl Token {
 impl Display for Token {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         return f
-            .write_fmt(format_args!("[ {:?}: {:?} ]", self.ttype, self.val));
+            .write_fmt(format_args!("| {:?}: {:?} ", self.ttype, self.val));
     }
 }

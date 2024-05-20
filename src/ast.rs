@@ -127,6 +127,48 @@ impl Node for CallStmt {
     }
 }
 
+pub struct ConditionalStmt {
+    conditional: Box<dyn Node>,
+    pass_block: Box<BlockStmt>,
+    fail_block: Option<Box<BlockStmt>>,
+}
+
+impl ConditionalStmt {
+    pub fn new(
+        cond: Box<dyn Node>,
+        pass_block: Box<BlockStmt>,
+        fail_block: Option<Box<BlockStmt>>,
+    ) -> Self {
+        return ConditionalStmt {
+            conditional: cond,
+            pass_block,
+            fail_block,
+        };
+    }
+}
+
+impl Node for ConditionalStmt {
+    fn eval(self) -> Box<dyn Node> {
+        return Box::new(self);
+    }
+    fn repr(&self) -> String {
+        let mut else_ = "".to_string();
+        if self.fail_block.is_some() {
+            let spaces =
+                "    ".repeat(self.fail_block.as_ref().unwrap().indent - 1);
+            else_ = format!(
+                "{spaces}else:\n{}",
+                self.fail_block.as_ref().unwrap().repr()
+            );
+        }
+        return format!(
+            "if ({}):\n{}\n{else_}",
+            self.conditional.repr(),
+            self.pass_block.repr(),
+        );
+    }
+}
+
 pub struct ReturnStmt {
     expr: Box<dyn Node>,
 }

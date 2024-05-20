@@ -1,15 +1,14 @@
-pub mod token;
-pub mod parser;
 pub mod ast;
+pub mod parser;
+pub mod token;
 
-use parser::{Parser, Precedence};
 use crate::ast::Node;
+use parser::Parser;
 use token::Tokenizer;
 
 fn main() {
-    let _ =
-        String::from(
-"struct Point:
+    let _ = String::from(
+        "struct Point:
     x: int
     y: int 
     def sum(self) -> int:
@@ -34,33 +33,50 @@ point_sum =:
 
 if good_val := could_return_none():
     print(good_val)
-");
+",
+    );
     let src = String::from(
 "a = (1 * (1 - 10)) * 90
 def square(a):
     return a * a
-out = square(10) + square(10) 
-"
+out = square(10) + square(square(20) * square(30))
+
+if out > 10:
+    print(out)
+else:
+    print(out + out)
+
+if out < 20:
+    x = (10 + 90) * 1000
+else:
+    x = square(square(900 * square(120)))
+
+if out == 90:
+    if out > 300:
+        print(10)
+        if out > 20:
+            print(100)
+        else:
+            print(200)
+else:
+    print(20)
+
+",
     );
-    let tokens =
-        Tokenizer::new(src)
-        .tokenize()
-        .expect("Failed to tokenize");
-        
-    // for token in &tokens {
-    //     println!("{}", token);
-    // }
+    let tokens = Tokenizer::new(src).tokenize().expect("Failed to tokenize");
+
+    for token in &tokens {
+        println!("{}", token);
+    }
     let mut parser = Parser::new(tokens);
     let ast = parser.parse_block(0);
     match ast {
         Ok(val) => {
             println!("{}", &val.repr());
-        },
+        }
         Err(e) => {
             println!("{:?}", e);
         }
-
     }
     // let result = Evaluator::new(ast).eval();
-
 }

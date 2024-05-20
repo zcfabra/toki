@@ -1,7 +1,7 @@
 use crate::{
     ast::{
-        AssignmentStmt, BinaryExpr, BlockStmt, CallStmt, FnLiteral,
-        Identifier, IntegerNode, Node, ReturnStmt,
+        AssignmentStmt, BinaryExpr, BlockStmt, CallStmt, ConditionalStmt,
+        FnLiteral, Identifier, IntegerNode, Node, ReturnStmt,
     },
     token::{self, TokenType},
 };
@@ -65,10 +65,11 @@ impl Parser {
         precedence: Precedence,
         terminator: TokenType,
         indent: usize,
-    ) -> Result<Box<dyn Node>, ParseError> {
+    ) -> Result<Option<Box<dyn Node>>, ParseError> {
         let mut node: Option<Box<dyn Node>> = None;
         while self.r < self.n_tokens
             && !self.current_token_is(terminator)?
+            && !self.current_token_is(TokenType::Newline)?
             && !self.current_token_is(TokenType::Eof)?
         {
             let tok = self.get_token();
@@ -76,60 +77,73 @@ impl Parser {
                 TokenType::Add
                 | TokenType::Sub
                 | TokenType::Mul
-                | TokenType::Div => {
+                | TokenType::Div
+                | TokenType::Eq
+                | TokenType::Gt
+                | TokenType::GtEq
+                | TokenType::Lt
+                | TokenType::LtEq => {
                     let new_precedence = Self::get_precedence(&tok.ttype);
                     if new_precedence < precedence {
                         if node.is_none() {
-                            node = Some(self.get_operand_node()?);
+                            node = self.get_operand_node()?;
                         }
-                        return Ok(node.unwrap());
+                        return Ok(node);
                     }
                     if node.is_none() {
-                        node = Some(self.get_operand_node()?);
+                        node = self.get_operand_node()?;
                     }
                     self.step();
                     node = Some(Self::get_binary_node(
                         tok.clone(),
                         node.unwrap(),
-                        self.parse(new_precedence, terminator, indent)?,
+                        self.parse(new_precedence, terminator, indent)?
+                            .expect("Unpack Binary"),
                     )?);
                 }
                 TokenType::LParen => {
                     self.incr_leading()?;
-                    node = Some(self.parse(
-                        Precedence::Lowest,
-                        terminator,
-                        indent,
-                    )?);
+                    node =
+                        self.parse(Precedence::Lowest, terminator, indent)?;
                 }
                 TokenType::RParen => {
                     if node.is_none() {
-                        node = Some(self.get_operand_node()?);
+                        node = self.get_operand_node()?;
                     }
                     self.incr_leading()?;
-                    return Ok(node.unwrap());
+                    return Ok(node);
                 }
                 TokenType::Assignment => {
                     let identifier: Identifier =
                         Identifier::new(self.tokens[self.l].clone());
                     self.step();
-                    let expr =
-                        self.parse(Precedence::Lowest, terminator, indent)?;
-                    return Ok(Box::new(AssignmentStmt::new(
-                        identifier, expr,
-                    )));
-                }
-                TokenType::Def => {
-                    // Get fn name
-                    return self.parse_fn(indent);
-                }
-                TokenType::Return => {
-                    self.step();
-                    return Ok(Box::new(ReturnStmt::new(self.parse(
+                    let expr = self.parse(
                         Precedence::Lowest,
                         TokenType::Newline,
                         indent,
-                    )?)));
+                    )?;
+                    return Ok(Some(Box::new(AssignmentStmt::new(
+                        identifier,
+                        expr.expect("Unwrap Assignment expr"),
+                    ))));
+                }
+                TokenType::Def => {
+                    // Get fn name
+                    return Ok(Some(self.parse_fn(indent)?));
+                }
+                TokenType::Return => {
+                    self.step();
+                    return Ok(Some(Box::new(ReturnStmt::new(
+                        self.parse(
+                            Precedence::Lowest,
+                            TokenType::Newline,
+                            indent,
+                        )?
+                        .expect("Return Stmt"),
+                    ))));
+                }
+                TokenType::If => {
+                    return Ok(Some(self.parse_conditional_stmt(indent)?));
                 }
                 TokenType::Identifier => {
                     if self.can_peek()
@@ -151,23 +165,68 @@ impl Parser {
             }
         }
         if node.is_none() {
-            node = Some(self.get_operand_node()?);
+            node = self.get_operand_node()?;
         }
-        return Ok(node.unwrap());
+        return Ok(node);
     }
 
+    fn parse_conditional_stmt(
+        &mut self,
+        indent: usize,
+    ) -> Result<Box<ConditionalStmt>, ParseError> {
+        self.step();
+        let cond = self.parse(Precedence::Lowest, TokenType::Colon, 0)?;
+        self.expect_peek(TokenType::Newline)?;
+        self.step();
+        self.expect_peek(TokenType::Indent(indent + 1))?;
+        self.step();
+        let pass_block = self.parse_block(indent + 1)?;
+        let mut fail_block: Option<Box<BlockStmt>> = None;
+
+        if self.token_is_indent_of(indent)
+            && self.peek_token_is(TokenType::Else)?
+        {
+            self.step();
+            self.expect_peek(TokenType::Colon)?;
+            self.step();
+            self.expect_peek(TokenType::Newline)?;
+            self.step();
+            self.step();
+            fail_block = Some(self.parse_block(indent + 1)?);
+        } else {
+            
+        }
+        return Ok(Box::new(ConditionalStmt::new(
+            cond.expect("Unwrap conditional"),
+            pass_block,
+            fail_block,
+        )));
+    }
+
+    fn token_is_indent_of(&self, indent: usize) -> bool {
+        return match self.get_token().ttype {
+            TokenType::Indent(indent_lvl) => indent_lvl == indent,
+            _ => false,
+        };
+    }
     fn parse_call_args(&mut self) -> Result<Vec<Box<dyn Node>>, ParseError> {
         self.incr_leading()?;
-        let mut args = Vec::new();
-        args.push(self.parse(Precedence::Lowest, TokenType::Comma, 0)?);
+        let mut args: Vec<Box<dyn Node>> = Vec::new();
+        let arg = self.parse(Precedence::Lowest, TokenType::Comma, 0)?;
+        if let Some(unwrap_arg) = arg {
+            args.push(unwrap_arg);
+        }
 
         while self.r < self.n_tokens
             && self.can_peek()
             && self.peek_token_is(TokenType::Comma)?
         {
             self.incr_leading()?;
-            let arg = self.parse(Precedence::Call, TokenType::Comma, 0)?;
-            args.push(arg);
+            if let Some(arg) =
+                self.parse(Precedence::Call, TokenType::Comma, 0)?
+            {
+                args.push(arg);
+            }
         }
         return Ok(args);
     }
@@ -189,7 +248,7 @@ impl Parser {
         self.expect_peek(TokenType::Newline)?;
         self.step();
         self.step();
-        let fn_body = Some(self.parse_block(indent)?);
+        let fn_body = Some(self.parse_block(indent + 1)?);
         return Ok(Box::new(FnLiteral::new(fn_name, args, fn_body.unwrap())));
     }
     fn parse_statements(
@@ -201,27 +260,38 @@ impl Parser {
             let tok = self.get_token();
             if tok.ttype == TokenType::Eof {
                 break;
-            } else if let TokenType::Indent(new_indent) = *&tok.ttype {
+            }
+            if let TokenType::Indent(new_indent) = *&tok.ttype {
                 if new_indent < indent {
                     break;
                 } else if new_indent > indent {
                     let block_stmt = self.parse_block(new_indent)?;
                     stmts.push(block_stmt);
                 } else {
-                    let stmt = self.parse(
+                    self.step();
+                    while self.current_token_is(TokenType::Newline)? {
+                        self.step();
+                        self.step();
+                    }
+                    if let Some(stmt) = self.parse(
                         Precedence::Lowest,
                         TokenType::Newline,
                         indent,
-                    )?;
-                    self.step();
-                    stmts.push(stmt);
+                    )? {
+                        if self.get_token().ttype == TokenType::Newline {
+                            self.step();
+                        }
+                        stmts.push(stmt);
+                    }
                 }
             } else if *&tok.ttype == TokenType::Newline {
                 if self.can_peek() {
                     let next_tok = self.get_peek_token().unwrap();
                     if let TokenType::Indent(lvl) = next_tok.ttype {
-                        if lvl != indent {
+                        if lvl < indent {
                             break;
+                        } else if lvl > indent {
+                            stmts.push(self.parse_block(lvl)?);
                         } else {
                             self.step();
                         }
@@ -230,14 +300,6 @@ impl Parser {
                     }
                 }
                 self.step();
-            } else if indent == 0 {
-                let node = self.parse(
-                    Precedence::Lowest,
-                    TokenType::Newline,
-                    indent,
-                )?;
-                self.step();
-                stmts.push(node);
             } else {
                 break;
             }
@@ -248,27 +310,20 @@ impl Parser {
         &mut self,
         indent: usize,
     ) -> Result<Box<BlockStmt>, ParseError> {
-        if indent == 0 {
-            return Ok(Box::new(BlockStmt::new(
-                indent,
-                self.parse_statements(indent)?,
-            )));
-        } else {
-            let tok = self.get_token();
-            if let TokenType::Indent(ind_lvl) = *&tok.ttype {
-                if ind_lvl != indent {
-                    return Err(ParseError::InvalidIndentLevel(format!(
-                        "Expected {} - Found {}",
-                        indent, ind_lvl
-                    )));
-                }
-                let stmts = self.parse_statements(indent)?;
-                return Ok(Box::new(BlockStmt::new(indent, stmts)));
+        let tok = self.get_token();
+        if let TokenType::Indent(ind_lvl) = *&tok.ttype {
+            if ind_lvl != indent {
+                return Err(ParseError::InvalidIndentLevel(format!(
+                    "Expected {} - Found {}",
+                    indent, ind_lvl
+                )));
             }
-            return Err(ParseError::InvalidBlockStart(
-                "Should be unreachable".to_string(),
-            ));
+            let stmts = self.parse_statements(ind_lvl)?;
+            return Ok(Box::new(BlockStmt::new(indent, stmts)));
         }
+        return Err(ParseError::InvalidBlockStart(
+            "Should be unreachable".to_string(),
+        ));
     }
 
     fn parse_args(&mut self) -> Result<Vec<Identifier>, ParseError> {
@@ -335,7 +390,9 @@ impl Parser {
         }
     }
 
-    pub fn get_operand_node(&mut self) -> Result<Box<dyn Node>, ParseError> {
+    pub fn get_operand_node(
+        &mut self,
+    ) -> Result<Option<Box<dyn Node>>, ParseError> {
         while self.l < self.n_tokens
             && self.tokens[self.l].ttype == TokenType::LParen
         {
@@ -344,16 +401,13 @@ impl Parser {
         let tok = self.tokens[self.l].clone();
         match tok.ttype {
             TokenType::Int => {
-                return Ok(Box::new(IntegerNode::new(tok)?));
+                return Ok(Some(Box::new(IntegerNode::new(tok)?)));
             }
             TokenType::Identifier => {
-                return Ok(Box::new(Identifier::new(tok)))
+                return Ok(Some(Box::new(Identifier::new(tok))));
             }
             _ => {
-                return Err(ParseError::InvalidTypeData(format!(
-                    "Invalid Operand Node `{}`",
-                    tok.val
-                )));
+                return Ok(None);
             }
         }
     }
