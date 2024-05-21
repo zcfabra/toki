@@ -60,7 +60,7 @@ impl Parser {
         self.l += 1;
     }
 
-    pub fn parse(
+    pub fn parse_stmt(
         &mut self,
         precedence: Precedence,
         terminator: TokenType,
@@ -74,6 +74,9 @@ impl Parser {
         {
             let tok = self.get_token();
             match tok.ttype {
+                // TokenType::Pipe => {
+                //     return Ok(Some(self.parse_pipe_expr()?));
+                // }
                 TokenType::Add
                 | TokenType::Sub
                 | TokenType::Mul
@@ -97,14 +100,17 @@ impl Parser {
                     node = Some(Self::get_binary_node(
                         tok.clone(),
                         node.unwrap(),
-                        self.parse(new_precedence, terminator, indent)?
+                        self.parse_stmt(new_precedence, terminator, indent)?
                             .expect("Unpack Binary"),
                     )?);
                 }
                 TokenType::LParen => {
                     self.incr_leading()?;
-                    node =
-                        self.parse(Precedence::Lowest, terminator, indent)?;
+                    node = self.parse_stmt(
+                        Precedence::Lowest,
+                        terminator,
+                        indent,
+                    )?;
                 }
                 TokenType::RParen => {
                     if node.is_none() {
@@ -117,7 +123,7 @@ impl Parser {
                     let identifier: Identifier =
                         Identifier::new(self.tokens[self.l].clone());
                     self.step();
-                    let expr = self.parse(
+                    let expr = self.parse_stmt(
                         Precedence::Lowest,
                         TokenType::Newline,
                         indent,
@@ -134,7 +140,7 @@ impl Parser {
                 TokenType::Return => {
                     self.step();
                     return Ok(Some(Box::new(ReturnStmt::new(
-                        self.parse(
+                        self.parse_stmt(
                             Precedence::Lowest,
                             TokenType::Newline,
                             indent,
@@ -170,12 +176,29 @@ impl Parser {
         return Ok(node);
     }
 
+    fn parse_pipe_expr(
+        &mut self,
+        expr: Box<dyn Node>,
+        indent: usize,
+    ) -> Result<Box<CallStmt>, ParseError> {
+        // A pipe takes in an expression as the first arg to a function call
+        todo!();
+        // self.expect_peek(TokenType::Identifier)?;
+        // self.step();
+        // let args: Vec<Box<dyn Node>> = Vec::from([expr]);
+        // self.step();
+        // let ident = self
+        //     .parse_stmt(Precedence::Lowest, TokenType::Newline, indent)?
+        //     .expect("Pipe Func");
+        // let cs = CallStmt::new(ident, args);
+        // return Ok(Box::new(cs));
+    }
     fn parse_conditional_stmt(
         &mut self,
         indent: usize,
     ) -> Result<Box<ConditionalStmt>, ParseError> {
         self.step();
-        let cond = self.parse(Precedence::Lowest, TokenType::Colon, 0)?;
+        let cond = self.parse_stmt(Precedence::Lowest, TokenType::Colon, 0)?;
         self.expect_peek(TokenType::Newline)?;
         self.step();
         self.expect_peek(TokenType::Indent(indent + 1))?;
@@ -194,7 +217,6 @@ impl Parser {
             self.step();
             fail_block = Some(self.parse_block(indent + 1)?);
         } else {
-            
         }
         return Ok(Box::new(ConditionalStmt::new(
             cond.expect("Unwrap conditional"),
@@ -212,7 +234,7 @@ impl Parser {
     fn parse_call_args(&mut self) -> Result<Vec<Box<dyn Node>>, ParseError> {
         self.incr_leading()?;
         let mut args: Vec<Box<dyn Node>> = Vec::new();
-        let arg = self.parse(Precedence::Lowest, TokenType::Comma, 0)?;
+        let arg = self.parse_stmt(Precedence::Lowest, TokenType::Comma, 0)?;
         if let Some(unwrap_arg) = arg {
             args.push(unwrap_arg);
         }
@@ -223,7 +245,7 @@ impl Parser {
         {
             self.incr_leading()?;
             if let Some(arg) =
-                self.parse(Precedence::Call, TokenType::Comma, 0)?
+                self.parse_stmt(Precedence::Call, TokenType::Comma, 0)?
             {
                 args.push(arg);
             }
@@ -273,7 +295,7 @@ impl Parser {
                         self.step();
                         self.step();
                     }
-                    if let Some(stmt) = self.parse(
+                    if let Some(stmt) = self.parse_stmt(
                         Precedence::Lowest,
                         TokenType::Newline,
                         indent,
@@ -321,9 +343,10 @@ impl Parser {
             let stmts = self.parse_statements(ind_lvl)?;
             return Ok(Box::new(BlockStmt::new(indent, stmts)));
         }
-        return Err(ParseError::InvalidBlockStart(
-            "Should be unreachable".to_string(),
-        ));
+        return Err(ParseError::InvalidBlockStart(format!(
+            "Should be unreachable {} {}/{}",
+            tok.val, self.r, self.n_tokens
+        )));
     }
 
     fn parse_args(&mut self) -> Result<Vec<Identifier>, ParseError> {
