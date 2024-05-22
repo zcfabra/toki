@@ -234,7 +234,9 @@ impl Tokenizer {
                 TokenType::Newline => {
                     if ix + 1 < tokens.len() {
                         match tokens[ix + 1].ttype {
-                            TokenType::Indent(_) | TokenType::Pipe => {
+                            TokenType::Indent(_)
+                            | TokenType::Pipe
+                            | TokenType::PipeMethod => {
                                 // Do nothing
                             }
                             _ => {

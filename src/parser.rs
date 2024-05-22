@@ -89,6 +89,7 @@ impl Parser {
                 | TokenType::Gt
                 | TokenType::GtEq
                 | TokenType::Pipe
+                | TokenType::PipeMethod
                 | TokenType::Lt
                 | TokenType::LtEq => {
                     let new_precedence = Self::get_precedence(&tok.ttype);
@@ -101,11 +102,12 @@ impl Parser {
                     if node.is_none() {
                         node = self.get_operand_node()?;
                     }
-                    let n_ = node.unwrap();
+                    println!("Unwrapping {}", self.get_token());
                     self.step();
+                    println!("Unwrapping {}", self.get_token());
                     node = Some(Self::get_binary_node(
                         tok.clone(),
-                        n_,
+                        node.unwrap(),
                         self.parse_stmt(new_precedence, terminator, indent)?
                             .expect("Unpack Binary"),
                     )?);
@@ -237,7 +239,7 @@ impl Parser {
         {
             self.incr_leading()?;
             if let Some(arg) =
-                self.parse_stmt(Precedence::Pipe, TokenType::Comma, 0)?
+                self.parse_stmt(Precedence::Lowest, TokenType::Comma, 0)?
             {
                 args.push(arg);
             }
@@ -292,10 +294,12 @@ impl Parser {
                         // TokenType::Newline,
                         indent,
                     )? {
+                        println!("Pushing Stmt {}", stmt.as_ref().clone().repr());
                         stmts.push(stmt);
                     }
                 }
             } else {
+                println!("Here {}", self.r);
                 return Err(ParseError::InvalidBlockStart(format!(
                     "{:?}",
                     self.get_token().ttype
@@ -387,7 +391,7 @@ impl Parser {
             TokenType::Mul | TokenType::Div => Precedence::MulDiv,
             TokenType::Lt | TokenType::Gt => Precedence::LtGt,
             TokenType::Eq => Precedence::EqNotEq,
-            TokenType::Pipe => Precedence::Pipe,
+            TokenType::Pipe | TokenType::PipeMethod => Precedence::Pipe,
             _ => Precedence::Lowest,
         }
     }
