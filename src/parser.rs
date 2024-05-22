@@ -102,9 +102,7 @@ impl Parser {
                     if node.is_none() {
                         node = self.get_operand_node()?;
                     }
-                    println!("Unwrapping {}", self.get_token());
                     self.step();
-                    println!("Unwrapping {}", self.get_token());
                     node = Some(Self::get_binary_node(
                         tok.clone(),
                         node.unwrap(),
@@ -294,7 +292,6 @@ impl Parser {
                         // TokenType::Newline,
                         indent,
                     )? {
-                        println!("Pushing Stmt {}", stmt.as_ref().clone().repr());
                         stmts.push(stmt);
                     }
                 }

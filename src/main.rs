@@ -75,9 +75,9 @@ a
     );
     let tokens = Tokenizer::new(src).tokenize().expect("Failed to tokenize");
 
-    for (ix, token) in tokens.iter().enumerate() {
-        println!("{ix} {}", token);
-    }
+    // for (ix, token) in tokens.iter().enumerate() {
+    //     println!("{ix} {}", token);
+    // }
     let mut parser = Parser::new(tokens);
     let ast = parser.parse_block(0);
     match ast {
