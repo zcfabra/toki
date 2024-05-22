@@ -85,12 +85,13 @@ Statements:
 6. Fn declaration
 */
 
+#[derive(Debug)]
 pub struct Identifier {
     token: Token,
 }
 impl Identifier {
     pub fn new(token: Token) -> Self {
-        return Identifier { token: token };
+        return Identifier { token };
     }
 }
 

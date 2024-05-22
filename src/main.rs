@@ -60,21 +60,17 @@ if out == 90:
             print(200)
 else:
     print(20)
-
 if 10 == 10:
     out = 900 + 900
-
-out
-|> double
-|> print 
-
+1 + 2 + 3 + 4
+|> print
 ",
     );
     let tokens = Tokenizer::new(src).tokenize().expect("Failed to tokenize");
 
-    // for token in &tokens {
-    //     println!("{}", token);
-    // }
+    for (ix, token) in tokens.iter().enumerate() {
+        println!("{ix} {}", token);
+    }
     let mut parser = Parser::new(tokens);
     let ast = parser.parse_block(0);
     match ast {

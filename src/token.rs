@@ -1,4 +1,4 @@
-use std::fmt::Display;
+use std::fmt::{format, Display};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum TokenType {
@@ -230,17 +230,25 @@ impl Tokenizer {
         nice_tokens
             .push(Token::new("[INDENT]".to_string(), TokenType::Indent(0)));
         for (ix, tok) in tokens.iter().enumerate() {
-            nice_tokens.push(tok.clone());
-            if tok.ttype == TokenType::Newline && ix + 1 < tokens.len() {
-                match tokens[ix + 1].ttype {
-                    TokenType::Indent(_) => {
+            match tok.ttype {
+                TokenType::Newline => {
+                    if ix + 1 < tokens.len() {
+                        match tokens[ix + 1].ttype {
+                            TokenType::Indent(_) | TokenType::Pipe => {
+                                // Do nothing
+                            }
+                            _ => {
+                                let tok = Token::new(
+                                    format!(""),
+                                    TokenType::Indent(0),
+                                );
+                                nice_tokens.push(tok);
+                            }
+                        }
                     }
-                    _ => {
-                        nice_tokens.push(Token::new(
-                            "[INDENT]".to_string(),
-                            TokenType::Indent(0),
-                        ));
-                    }
+                }
+                _ => {
+                    nice_tokens.push(tok.clone());
                 }
             }
         }
