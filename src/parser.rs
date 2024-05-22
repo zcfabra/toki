@@ -125,6 +125,21 @@ impl Parser {
                     self.incr_leading()?;
                     return Ok(node);
                 }
+                TokenType::ReverseWalrus => {
+                    let identifier: Identifier =
+                        Identifier::new(self.tokens[self.l].clone());
+                    self.step();
+                    self.step();
+                    let expr = self.parse_stmt(
+                        Precedence::Lowest,
+                        TokenType::Indent(indent),
+                        indent,
+                    )?;
+                    return Ok(Some(Box::new(AssignmentStmt::new(
+                        identifier,
+                        expr.expect("Unwrap Assignment expr"),
+                    ))));
+                }
                 TokenType::Assignment => {
                     let identifier: Identifier =
                         Identifier::new(self.tokens[self.l].clone());
@@ -184,20 +199,16 @@ impl Parser {
         return Ok(node);
     }
 
-    fn parse_pipe_expr(
-        &mut self,
-        indent: usize,
-    ) -> Result<Box<CallStmt>, ParseError> {
-        // A pipe takes in an expression as the first arg to a function call
-        return Err(ParseError::ReachedEnd);
-    }
     fn parse_conditional_stmt(
         &mut self,
         indent: usize,
     ) -> Result<Box<ConditionalStmt>, ParseError> {
+        // If -> Condition
         self.step();
         let cond = self.parse_stmt(Precedence::Lowest, TokenType::Colon, 0)?;
+        // Condition suffix colon -> Indent
         self.step();
+
         let pass_block = self.parse_block(indent + 1)?;
         let mut fail_block: Option<Box<BlockStmt>> = None;
         if self.token_is_indent_of(indent)
@@ -208,7 +219,6 @@ impl Parser {
             self.step();
             self.step();
             fail_block = Some(self.parse_block(indent + 1)?);
-        } else {
         }
         return Ok(Box::new(ConditionalStmt::new(
             cond.expect("Unwrap conditional"),

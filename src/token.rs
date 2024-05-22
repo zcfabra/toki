@@ -231,12 +231,25 @@ impl Tokenizer {
             .push(Token::new("[INDENT]".to_string(), TokenType::Indent(0)));
         for (ix, tok) in tokens.iter().enumerate() {
             match tok.ttype {
+                TokenType::Indent(_) => {
+                    if ix + 1 < tokens.len() {
+                        match tokens[ix + 1].ttype {
+                            TokenType::Pipe | TokenType::PipeMethod => {}
+                            _ => {
+                                nice_tokens.push(Token::new(
+                                    "".to_string(),
+                                    tok.ttype,
+                                ));
+                            }
+                        }
+                    }
+                }
                 TokenType::Newline => {
                     if ix + 1 < tokens.len() {
                         match tokens[ix + 1].ttype {
-                            TokenType::Indent(_)
-                            | TokenType::Pipe
-                            | TokenType::PipeMethod => {
+                            TokenType::Pipe | TokenType::PipeMethod => {}
+                            TokenType::Indent(ind) => {
+                                println!("Indent - {}", ind);
                                 // Do nothing
                             }
                             _ => {
