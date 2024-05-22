@@ -64,6 +64,8 @@ if 10 == 10:
     out = 900 + 900
 1 + 2 + 3 + 4
 |> print
+|> double
+|> print 
 ",
     );
     let tokens = Tokenizer::new(src).tokenize().expect("Failed to tokenize");

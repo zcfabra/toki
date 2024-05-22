@@ -79,7 +79,6 @@ impl Parser {
                 //     return Ok(Some(self.parse_pipe_expr()?));
                 // }
                 TokenType::Indent(_) => {
-                    println!("Breaking");
                     break;
                 }
                 TokenType::Add
@@ -92,13 +91,11 @@ impl Parser {
                 | TokenType::Pipe
                 | TokenType::Lt
                 | TokenType::LtEq => {
-                    println!("Landed here");
                     let new_precedence = Self::get_precedence(&tok.ttype);
                     if new_precedence <= precedence {
                         if node.is_none() {
                             node = self.get_operand_node()?;
                         }
-                        println!("Node: {}", node.as_ref().unwrap().repr());
                         return Ok(node);
                     }
                     if node.is_none() {
@@ -210,7 +207,6 @@ impl Parser {
             self.expect_peek(TokenType::Colon)?;
             self.step();
             self.step();
-            println!("Entering Fail Block");
             fail_block = Some(self.parse_block(indent + 1)?);
         } else {
         }
@@ -269,7 +265,6 @@ impl Parser {
 
         self.step();
         let fn_body = Some(self.parse_block(indent + 1)?);
-        println!("End of fn {}", self.get_token());
         return Ok(Box::new(FnLiteral::new(fn_name, args, fn_body.unwrap())));
     }
     fn parse_statements(
@@ -284,26 +279,19 @@ impl Parser {
             }
             if let TokenType::Indent(new_indent) = *&tok.ttype {
                 if new_indent < indent {
-                    println!("Jumping up from {indent} to {new_indent}");
+                    println!("{new_indent} <-- {indent}");
                     break;
                 } else if new_indent > indent {
-                    println!("Jumping into new block with {new_indent}");
+                    println!("{new_indent} --> {indent}");
                     stmts.push(self.parse_block(new_indent)?);
                 } else {
-                    println!("Pre Step {}", self.get_token());
                     self.step();
-                    println!("Post Step {}", self.get_token());
-                    println!("Statement with indent {indent}");
                     if let Some(stmt) = self.parse_stmt(
                         Precedence::Lowest,
                         TokenType::Indent(indent),
                         // TokenType::Newline,
                         indent,
                     )? {
-                        // if self.get_token().ttype == TokenType::Newline {
-                        //     self.step();
-                        // }
-                        println!("Pushing completed stmt");
                         stmts.push(stmt);
                     }
                 }
@@ -320,7 +308,6 @@ impl Parser {
         &mut self,
         indent: usize,
     ) -> Result<Box<BlockStmt>, ParseError> {
-        println!("Entering block with indent {indent}");
         let tok = self.get_token();
         if let TokenType::Indent(ind_lvl) = *&tok.ttype {
             if ind_lvl != indent {
