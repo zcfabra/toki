@@ -73,7 +73,7 @@ impl Node for BinaryExpr {
     fn repr(&self) -> String {
         let l = &self.l.repr();
         let r = &self.r.repr();
-        return format!("( {} {} {} )", l, self.op, r);
+        return format!("({} {} {})", l, self.op, r);
     }
 }
 
