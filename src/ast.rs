@@ -1,4 +1,5 @@
 use std::any::Any;
+use std::fmt::format;
 
 use crate::parser::ParseError;
 use crate::token::Token;
@@ -20,22 +21,23 @@ Expressions:
 */
 
 pub struct IntegerNode {
-    token: Token,
     value: i32,
 }
 
 impl IntegerNode {
     pub fn new(token: Token) -> Result<Self, ParseError> {
-        let int_val: i32 = token.val.parse::<i32>().map_err(|_| {
-            ParseError::InvalidTypeData(format!(
-                "Failed conversion: {} -> Int",
-                token.val
-            ))
-        })?;
-        return Ok(IntegerNode {
-            value: int_val,
-            token: token,
-        });
+        if let Token::Int(i) = token.clone() {
+            return Ok(IntegerNode {
+                value: i
+                    .parse::<i32>()
+                    .map_err(|_| ParseError::InvalidTypeData(format!("")))?,
+            });
+        } else {
+            return Err(ParseError::InvalidTypeData(format!(
+                "Expected Integer - Found {:?}",
+                token
+            )));
+        }
     }
 }
 
@@ -71,7 +73,7 @@ impl Node for BinaryExpr {
     fn repr(&self) -> String {
         let l = &self.l.repr();
         let r = &self.r.repr();
-        return format!("( {} {} {} )", l, self.op.val, r);
+        return format!("( {} {} {} )", l, self.op, r);
     }
 }
 
@@ -87,11 +89,11 @@ Statements:
 
 #[derive(Debug)]
 pub struct Identifier {
-    token: Token,
+    literal: String,
 }
 impl Identifier {
-    pub fn new(token: Token) -> Self {
-        return Identifier { token };
+    pub fn new(literal: String) -> Self {
+        return Identifier { literal };
     }
 }
 
@@ -100,7 +102,7 @@ impl Node for Identifier {
         return Box::new(self);
     }
     fn repr(&self) -> String {
-        return format!("{}", self.token.val);
+        return format!("{}", self.literal);
     }
 }
 
@@ -124,7 +126,7 @@ impl Node for CallStmt {
             .map(|e| e.repr())
             .collect::<Vec<String>>()
             .join(", ");
-        return format!("{}({})", self.name.token.val, args);
+        return format!("{}({})", self.name.literal, args);
     }
 }
 
@@ -277,7 +279,7 @@ impl Node for FnLiteral {
 
         return format!(
             "def {}({}):\n{}",
-            self.name.token.val,
+            self.name.literal,
             args,
             self.definition.repr()
         );

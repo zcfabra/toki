@@ -1,7 +1,7 @@
 use std::fmt::{format, Display};
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum TokenType {
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum Token {
     Add,
     AddEq,
     Sub,
@@ -22,8 +22,8 @@ pub enum TokenType {
     And,
     Dot,
 
-    Int,
-    Identifier,
+    Int(String),
+    Identifier(String),
 
     LParen,
     RParen,
@@ -38,10 +38,6 @@ pub enum TokenType {
     Pipe,
     PipeMethod,
     PipeErr,
-    PipeOk,
-    PipeDebug,
-    PipeBreak,
-    PipeMatch,
 
     Bang,
     Assignment,
@@ -68,6 +64,77 @@ pub enum TokenType {
     Comma,
     Self_,
 }
+
+impl Display for Token {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let s = match self {
+            Self::Add => "+",
+            Self::AddEq => "+=",
+            Self::Sub => "-",
+            Self::SubEq => "-=",
+            Self::Mul => "*",
+            Self::MulEq => "*=",
+            Self::Div => "/",
+            Self::DivEq => "/=",
+
+            Self::Eq => "==",
+            Self::NotEq => "!=",
+            Self::Gt => ">",
+            Self::GtEq => ">=",
+            Self::Lt => "<",
+            Self::LtEq => "<=",
+
+            Self::Or => "or",
+            Self::And => "and",
+            Self::Dot => ".",
+
+            Self::Int(i) =>i.as_str(),
+            Self::Identifier(ident) => ident.as_str(),
+
+            Self::LParen => "(",
+            Self::RParen => ")",
+            Self::LSquare => "[",
+            Self::RSquare => "]",
+            Self::LBrace => "{",
+            Self::RBrace => "}",
+
+            Self::Arrow => "->",
+
+            Self::Pipe => "|>",
+            Self::PipeMethod => "|.",
+            Self::PipeErr => "|!",
+
+            Self::Bang => "!",
+            Self::Assignment => "=",
+            Self::Bar => "|",
+            Self::For => "for",
+            Self::Return => "return",
+            Self::Def => "def",
+            Self::Walrus => ":=",
+            Self::ReverseWalrus => "=:",
+            Self::Colon => ":",
+
+            Self::Indent(_) => ">>>>",
+            Self::Eof => "[EOF]",
+
+            Self::Newline => "\n",
+            Self::If => "if",
+            Self::Else => "else",
+            Self::In => "in",
+            Self::Range => "range",
+            Self::Struct => "struct",
+            Self::Protocol => "protocol",
+            Self::Enum => "enum",
+
+            Self::Comma => ",",
+            Self::Self_ => "self",
+
+        };
+        write!(f, "{s}");
+        return Ok(());
+    }
+}
+
 #[derive(Debug)]
 pub enum TokenizerError {
     InvalidChar(char, usize),
@@ -103,110 +170,103 @@ impl Tokenizer {
                     let n_spaces = self.r - self.l;
                     if n_spaces >= 1 {
                         if n_spaces % 4 == 0 {
-                            tokens.push(Token::new(
-                                "Indent".to_string(),
-                                TokenType::Indent(n_spaces / 4),
-                            ));
+                            tokens.push(Token::Indent(n_spaces / 4));
                         }
                     }
 
                     self.l = self.r;
                 }
                 // Indent + Newlines
-                '\n' => tokens.push(self.get_char_op(ch, TokenType::Newline)),
+                '\n' => tokens.push(self.get_char_op(Token::Newline)),
                 // Single Char Operators
-                '(' => tokens.push(self.get_char_op(ch, TokenType::LParen)),
-                ')' => tokens.push(self.get_char_op(ch, TokenType::RParen)),
-                '[' => tokens.push(self.get_char_op(ch, TokenType::LSquare)),
-                ']' => tokens.push(self.get_char_op(ch, TokenType::RSquare)),
-                '{' => tokens.push(self.get_char_op(ch, TokenType::RSquare)),
-                '}' => tokens.push(self.get_char_op(ch, TokenType::RSquare)),
-                ',' => tokens.push(self.get_char_op(ch, TokenType::Comma)),
-                '.' => tokens.push(self.get_char_op(ch, TokenType::Dot)),
+                '(' => tokens.push(self.get_char_op(Token::LParen)),
+                ')' => tokens.push(self.get_char_op(Token::RParen)),
+                '[' => tokens.push(self.get_char_op(Token::LSquare)),
+                ']' => tokens.push(self.get_char_op(Token::RSquare)),
+                '{' => tokens.push(self.get_char_op(Token::RSquare)),
+                '}' => tokens.push(self.get_char_op(Token::RSquare)),
+                ',' => tokens.push(self.get_char_op(Token::Comma)),
+                '.' => tokens.push(self.get_char_op(Token::Dot)),
                 '<' => {
                     let token = if self.next_char_is('=') {
-                        self.get_long_op(TokenType::LtEq)
+                        self.get_long_op(Token::LtEq)
                     } else {
-                        self.get_char_op(ch, TokenType::Lt)
+                        self.get_char_op(Token::Lt)
                     };
                     tokens.push(token);
                 }
                 '>' => {
                     let token = if self.next_char_is('=') {
-                        self.get_long_op(TokenType::GtEq)
+                        self.get_long_op(Token::GtEq)
                     } else {
-                        self.get_char_op(ch, TokenType::Gt)
+                        self.get_char_op(Token::Gt)
                     };
                     tokens.push(token);
                 }
                 '+' => {
                     let token = if self.next_char_is('=') {
-                        self.get_long_op(TokenType::AddEq)
+                        self.get_long_op(Token::AddEq)
                     } else {
-                        self.get_char_op(ch, TokenType::Add)
+                        self.get_char_op(Token::Add)
                     };
                     tokens.push(token);
                 }
                 '-' => {
                     let token = if self.next_char_is('=') {
-                        self.get_long_op(TokenType::SubEq)
+                        self.get_long_op(Token::SubEq)
                     } else if self.next_char_is('>') {
-                        self.get_long_op(TokenType::Arrow)
+                        self.get_long_op(Token::Arrow)
                     } else {
-                        self.get_char_op(ch, TokenType::Sub)
+                        self.get_char_op(Token::Sub)
                     };
                     tokens.push(token);
                 }
                 '*' => {
                     let token = if self.next_char_is('=') {
-                        self.get_long_op(TokenType::MulEq)
+                        self.get_long_op(Token::MulEq)
                     } else {
-                        self.get_char_op(ch, TokenType::Mul)
+                        self.get_char_op(Token::Mul)
                     };
                     tokens.push(token);
                 }
                 '/' => {
                     let token = if self.next_char_is('=') {
-                        self.get_long_op(TokenType::DivEq)
+                        self.get_long_op(Token::DivEq)
                     } else {
-                        self.get_char_op(ch, TokenType::Div)
+                        self.get_char_op(Token::Div)
                     };
                     tokens.push(token);
                 }
                 '=' => {
                     let token = match self.get_next_char() {
-                        Some('=') => self.get_long_op(TokenType::Eq),
-                        Some(':') => {
-                            self.get_long_op(TokenType::ReverseWalrus)
-                        }
-                        _ => self.get_char_op(ch, TokenType::Assignment),
+                        Some('=') => self.get_long_op(Token::Eq),
+                        Some(':') => self.get_long_op(Token::ReverseWalrus),
+                        _ => self.get_char_op(Token::Assignment),
                     };
                     tokens.push(token);
                 }
                 ':' => {
                     let token = if self.next_char_is('=') {
-                        self.get_long_op(TokenType::Walrus)
+                        self.get_long_op(Token::Walrus)
                     } else {
-                        self.get_char_op(ch, TokenType::Colon)
+                        self.get_char_op(Token::Colon)
                     };
                     tokens.push(token);
                 }
                 '|' => {
                     let token = match self.get_next_char() {
-                        Some('>') => self.get_long_op(TokenType::Pipe),
-                        Some('.') => self.get_long_op(TokenType::PipeMethod),
-                        Some('?') => self.get_long_op(TokenType::PipeDebug),
-                        Some('*') => self.get_long_op(TokenType::PipeOk),
-                        Some('!') => self.get_long_op(TokenType::PipeErr),
-                        _ => self.get_char_op(ch, TokenType::Bar),
+                        Some('>') => self.get_long_op(Token::Pipe),
+                        Some('.') => self.get_long_op(Token::PipeMethod),
+                        Some('!') => self.get_long_op(Token::PipeErr),
+                        _ => self.get_char_op(Token::Bar),
                     };
                     tokens.push(token);
                 }
                 '!' => {
                     let token = if self.next_char_is('=') {
-                        self.get_long_op(TokenType::NotEq)
+                        self.get_long_op(Token::NotEq)
                     } else {
-                        self.get_char_op(ch, TokenType::Bang)
+                        self.get_char_op(Token::Bang)
                     };
                     tokens.push(token);
                 }
@@ -222,42 +282,31 @@ impl Tokenizer {
                 }
             }
         }
-        tokens.push(Token::new("EOF".to_string(), TokenType::Eof));
+        tokens.push(Token::Eof);
         return Ok(Self::make_nice_indents(tokens));
     }
     pub fn make_nice_indents(tokens: Vec<Token>) -> Vec<Token> {
         let mut nice_tokens: Vec<Token> = Vec::new();
-        nice_tokens
-            .push(Token::new("[INDENT]".to_string(), TokenType::Indent(0)));
+        nice_tokens.push(Token::Indent(0));
         for (ix, tok) in tokens.iter().enumerate() {
-            match tok.ttype {
-                TokenType::Indent(_) => {
+            match tok {
+                Token::Indent(_) => {
                     if ix + 1 < tokens.len() {
-                        match tokens[ix + 1].ttype {
-                            TokenType::Pipe | TokenType::PipeMethod => {}
+                        match tokens[ix + 1] {
+                            Token::Pipe | Token::PipeMethod => {}
                             _ => {
-                                nice_tokens.push(Token::new(
-                                    "".to_string(),
-                                    tok.ttype,
-                                ));
+                                nice_tokens.push(tok.clone());
                             }
                         }
                     }
                 }
-                TokenType::Newline => {
+                Token::Newline => {
                     if ix + 1 < tokens.len() {
-                        match tokens[ix + 1].ttype {
-                            TokenType::Pipe | TokenType::PipeMethod => {}
-                            TokenType::Indent(ind) => {
-                                println!("Indent - {}", ind);
-                                // Do nothing
-                            }
+                        match tokens[ix + 1] {
+                            Token::Pipe | Token::PipeMethod => {}
+                            Token::Indent(_) => {}
                             _ => {
-                                let tok = Token::new(
-                                    format!(""),
-                                    TokenType::Indent(0),
-                                );
-                                nice_tokens.push(tok);
+                                nice_tokens.push(Token::Indent(0));
                             }
                         }
                     }
@@ -289,26 +338,25 @@ impl Tokenizer {
         }
         let literal = self.src[self.l..self.r].iter().collect();
         self.l = self.r;
-        let token_type =
-            Tokenizer::get_keyword(&literal).unwrap_or(TokenType::Identifier);
-        return Token::new(literal, token_type);
+        return Tokenizer::get_keyword(&literal)
+            .unwrap_or(Token::Identifier(literal));
     }
-    pub fn get_keyword(literal: &String) -> Option<TokenType> {
+    pub fn get_keyword(literal: &String) -> Option<Token> {
         let literal_str = literal.as_str();
         return match literal_str {
-            "for" => Some(TokenType::For),
-            "def" => Some(TokenType::Def),
-            "or" => Some(TokenType::Or),
-            "and" => Some(TokenType::And),
-            "if" => Some(TokenType::If),
-            "else" => Some(TokenType::Else),
-            "in" => Some(TokenType::In),
-            "range" => Some(TokenType::Range),
-            "return" => Some(TokenType::Return),
-            "struct" => Some(TokenType::Struct),
-            "self" => Some(TokenType::Self_),
-            "enum" => Some(TokenType::Enum),
-            "protocol" => Some(TokenType::Protocol),
+            "for" => Some(Token::For),
+            "def" => Some(Token::Def),
+            "or" => Some(Token::Or),
+            "and" => Some(Token::And),
+            "if" => Some(Token::If),
+            "else" => Some(Token::Else),
+            "in" => Some(Token::In),
+            "range" => Some(Token::Range),
+            "return" => Some(Token::Return),
+            "struct" => Some(Token::Struct),
+            "self" => Some(Token::Self_),
+            "enum" => Some(Token::Enum),
+            "protocol" => Some(Token::Protocol),
             _ => None,
         };
     }
@@ -317,44 +365,23 @@ impl Tokenizer {
         {
             self.r += 1;
         }
-        let literal = self.src[self.l..self.r].iter().collect();
+        let literal = self.src[self.l..self.r]
+            .iter()
+            .collect();
         self.l = self.r;
-        return Token::new(literal, TokenType::Int);
+        return Token::Int(literal);
     }
-    pub fn get_long_op(&mut self, tt: TokenType) -> Token {
-        let literal = self.src[self.r..=self.r + 1].iter().collect();
+    pub fn get_long_op(&mut self, tk: Token) -> Token {
         // Consume first char of operator
         self.r += 1;
         // Consume second char of operator
         self.r += 1;
         self.l = self.r;
-        return Token::new(literal, tt);
+        return tk;
     }
-    pub fn get_char_op(&mut self, ch: char, tt: TokenType) -> Token {
+    pub fn get_char_op(&mut self, tk: Token) -> Token {
         self.r += 1;
         self.l = self.r;
-        return Token::new(ch.to_string(), tt);
-    }
-}
-
-#[derive(Debug, Clone)]
-pub struct Token {
-    pub val: String,
-    pub ttype: TokenType,
-}
-
-impl Token {
-    pub fn new(literal: String, ttype: TokenType) -> Token {
-        return Token {
-            val: literal,
-            ttype: ttype,
-        };
-    }
-}
-
-impl Display for Token {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        return f
-            .write_fmt(format_args!("| {:?}: {:?} ", self.ttype, self.val));
+        return tk;
     }
 }
