@@ -1,15 +1,17 @@
 pub mod ast;
 pub mod lexer;
 pub mod parser;
+pub mod reporter;
 pub mod token;
 
 use crate::lexer::Lexer;
+use crate::parser::parse;
+use crate::reporter::report;
 
 fn main() {
-    for tok in Lexer::new("a_var_name + a_var_name_2 + c + * 90") {
-        match tok {
-            Ok(t) => println!("{}", t),
-            Err(e) => println!("{}", e),
-        }
+    let src = "10 + 90 * 20 + 10";
+    match report(parse(Lexer::new(src)), src) {
+        Ok(parsed) => println!("{}", parsed),
+        Err(e) => println!("{}", e),
     }
 }

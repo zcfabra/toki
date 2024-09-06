@@ -1,4 +1,4 @@
-use crate::token::Token;
+use crate::token::{SpannedToken, Token};
 
 pub struct Lexer<'src> {
     src: &'src str,
@@ -17,7 +17,7 @@ where
     err: &'err E,
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq, Eq)]
 pub enum LexErr {
     UnknownToken(SourcePostion, Option<SourcePostion>),
     UnterminatedString(SourcePostion),
@@ -56,16 +56,17 @@ impl<'src> Lexer<'src> {
 }
 
 impl<'src> Iterator for Lexer<'src> {
-    type Item = Result<Token<'src>, LexErr>;
+    type Item = Result<SpannedToken<'src>, LexErr>;
 
     fn next(&mut self) -> Option<Self::Item> {
-        let c_at = self.byte;
+        let mut c_at = self.byte;
 
         let mut chars = self.rest.chars();
         let mut c = chars.next()?;
 
         while c == ' ' {
             self.byte += c.len_utf8();
+            c_at = self.byte;
             self.rest = &self.rest[c.len_utf8()..];
             c = chars.next()?;
         }
@@ -75,6 +76,9 @@ impl<'src> Iterator for Lexer<'src> {
         self.rest = chars.as_str();
 
         let started = match c {
+            '(' => return Some(Ok((c_at, Token::LParen))),
+            ')' => return Some(Ok((c_at, Token::RParen))),
+
             '+' => Started::IfEqualElse(Token::Add, Token::AddEq),
             '-' => Started::IfEqualElse(Token::Sub, Token::SubEq),
             '*' => Started::IfEqualElse(Token::Mul, Token::MulEq),
@@ -102,7 +106,7 @@ impl<'src> Iterator for Lexer<'src> {
 
                 let n: i32 =
                     numeric_token.parse().expect("Should have checked");
-                Token::IntLiteral(n)
+                (c_at, Token::IntLiteral(n))
             }
             Started::Ident => {
                 let ident_ed_ix = c_rest
@@ -115,7 +119,7 @@ impl<'src> Iterator for Lexer<'src> {
                 self.byte += n_bytes;
                 self.rest = &self.rest[n_bytes..];
 
-                Token::Ident(ident)
+                (c_at, Token::Ident(ident))
             }
             Started::String => {
                 if let Some(str_end_ix) = c_rest[1..].find(|c| c == '"') {
@@ -125,19 +129,23 @@ impl<'src> Iterator for Lexer<'src> {
                     self.byte += n_bytes;
                     self.rest = &self.rest[n_bytes..];
 
-                    Token::StrLiteral(&full_str[1..&full_str.len() - 1])
+                    (
+                        c_at,
+                        Token::StrLiteral(&full_str[1..&full_str.len() - 1]),
+                    )
                 } else {
                     return Some(Err(LexErr::UnterminatedString(c_at)));
                 }
             }
             Started::IfEqualElse(no, yes) => {
-                if self.rest.starts_with('=') {
+                let tok = if self.rest.starts_with('=') {
                     self.byte += '='.len_utf8();
                     self.rest = &self.rest[1..];
                     yes
                 } else {
                     no
-                }
+                };
+                (c_at, tok)
             }
             _ => todo!(),
         }))
