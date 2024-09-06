@@ -18,7 +18,7 @@ pub enum ParseErr {
 }
 pub fn parse<'src, I>(tokens: I) -> Result<AstNode<'src>, ParseErr>
 where
-    I: Iterator<Item = Result<SpannedToken<'src>, LexErr>> + 'src,
+    I: Iterator<Item = Result<SpannedToken<'src>, LexErr>>,
 {
     let peekable_tokens = &mut tokens.peekable();
 
