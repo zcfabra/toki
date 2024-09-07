@@ -14,7 +14,7 @@ pub enum Precedence {
 pub enum ParseErr {
     UnexpectedEnd,
     LexErr(LexErr),
-    InvalidExpressionStart(usize),
+    InvalidExpressionStart(usize, usize),
 }
 pub fn parse<'src, I>(tokens: I) -> Result<AstNode<'src>, ParseErr>
 where
@@ -80,8 +80,8 @@ where
             id @ Token::Ident(_) => AstLiteral::Ident(id).into(),
             il @ Token::IntLiteral(_) => AstLiteral::Int(il).into(),
             sl @ Token::StrLiteral(_) => AstLiteral::Str(sl).into(),
-            Token::LParen => parse_expr(tokens, precedence)?,
-            _ => return Err(ParseErr::InvalidExpressionStart(ix)),
+            Token::LParen | Token::Newline => parse_expr(tokens, precedence)?,
+            _ => return Err(ParseErr::InvalidExpressionStart(ix, tok.src_len())),
         })
     } else {
         Err(ParseErr::UnexpectedEnd)

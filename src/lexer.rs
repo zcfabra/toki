@@ -76,6 +76,7 @@ impl<'src> Iterator for Lexer<'src> {
         self.rest = chars.as_str();
 
         let started = match c {
+            '\n' => return Some(Ok((c_at, Token::Newline))),
             '(' => return Some(Ok((c_at, Token::LParen))),
             ')' => return Some(Ok((c_at, Token::RParen))),
 
@@ -119,7 +120,7 @@ impl<'src> Iterator for Lexer<'src> {
                 self.byte += n_bytes;
                 self.rest = &self.rest[n_bytes..];
 
-                (c_at, Token::Ident(ident))
+                (c_at, get_keyword(ident).unwrap_or_else(||Token::Ident(ident)))
             }
             Started::String => {
                 if let Some(str_end_ix) = c_rest[1..].find(|c| c == '"') {
@@ -150,4 +151,13 @@ impl<'src> Iterator for Lexer<'src> {
             _ => todo!(),
         }))
     }
+}
+
+fn get_keyword<'src>(ident: &'src str) -> Option<Token<'src>> {
+    Some(match ident {
+        "and" => Token::And,
+        "or" => Token::Or,
+        "not" => Token::Not,
+        _ => return None,
+    })
 }

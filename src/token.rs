@@ -9,6 +9,8 @@ pub enum Token<'src> {
     StrLiteral(&'src str),
     Ident(&'src str),
 
+    Newline,
+
     LParen,
     RParen,
 
@@ -31,6 +33,36 @@ pub enum Token<'src> {
     Not,
     And,
     Or,
+}
+
+impl Token<'_> {
+    pub fn src_len(&self) -> usize {
+        match self {
+            Self::Eq
+            | Self::Bang
+            | Self::Add
+            | Self::Sub
+            | Self::Mul
+            | Self::Div
+            | Self::LParen
+            | Self::RParen
+            | Self::Newline => 1,
+            Self::DoubleEq
+            | Self::BangEq
+            | Self::AddEq
+            | Self::SubEq
+            | Self::MulEq
+            | Self::DivEq
+            | Self::Or => 2,
+
+            Self::And | Self::Not => 3,
+
+            Self::IntLiteral(i) => format!("{}", i).len(),
+            Self::FloatLiteral(f) => format!("{}", f).len(),
+            Self::StrLiteral(s) => s.len() + 2, // Add length of quotations
+            Self::Ident(id) => id.len(),
+        }
+    }
 }
 
 impl std::fmt::Display for Token<'_> {
@@ -65,6 +97,8 @@ impl std::fmt::Display for Token<'_> {
                 Self::Not => "not",
                 Self::And => "and",
                 Self::Or => "or",
+
+                Self::Newline => "[NEWLINE]",
             }
         )
     }

@@ -1,6 +1,8 @@
 use crate::ast::AstNode;
 use crate::parser::ParseErr;
 
+// TODO: Extract the print formatting stuff
+
 pub fn report<'src>(
     parsed: Result<AstNode<'src>, ParseErr>,
     src: &'src str,
@@ -11,19 +13,22 @@ pub fn report<'src>(
     };
 
     Err(match err {
-        ParseErr::InvalidExpressionStart(ix) => {
-            let line = extract_line(src, ix);
-            let line_w_highlight = highlight_line(line, ix);
+        ParseErr::InvalidExpressionStart(ix, len) => {
+            let (line, line_no, ix_in_line) = extract_line(src, ix);
+
+            let line_w_underline = underline_line(&line, ix_in_line, len);
+            let highlight_line = highlight_line(&line, ix_in_line, len);
+
             format!(
-                "Invalid Expression Start at Position {}\n\n{}\n{}\n\n",
-                ix, line, line_w_highlight
+                "\n\x1b[1mError: Expected Expression at Position {}:{}:\x1b[0m\n\n\t{}\n\t{}\n\n",
+                line_no, ix, highlight_line, line_w_underline
             )
         }
         _ => todo!(),
     })
 }
 
-fn extract_line(s: &str, ix: usize) -> &str {
+fn extract_line(s: &str, ix: usize) -> (&str, usize, usize) {
     // Find the slice before the index
     let before_ix = &s[..ix];
 
@@ -36,12 +41,28 @@ fn extract_line(s: &str, ix: usize) -> &str {
     // Find the first newline after the index, or the end of the string
     let end = after_ix.find('\n').map_or(s.len(), |n| ix + n);
 
+    let line_no = before_ix.split('\n').collect::<Vec<&str>>().len() - 1;
+
     // Return the slice between the found newlines
-    &s[start..end]
+    let line = &s[start..end];
+    (line, line_no, ix - start)
 }
 
-fn highlight_line(line: &str, ix: usize) -> String {
+fn highlight_line(line: &str, ix: usize, token_len: usize) -> String {
+    let mut s = line.to_string();
+    s.replace_range(
+        ix..ix + token_len,
+        format!("\x1b[91m{}\x1b[0m", &line[ix..ix + token_len]).as_str(),
+    );
+    return s;
+}
+
+fn underline_line(line: &str, ix: usize, token_len: usize) -> String {
     let mut s = std::iter::repeat(" ").take(line.len()).collect::<String>();
-    s.replace_range(ix..ix + 1, "^");
+    let highlight = std::iter::repeat("^").take(token_len).collect::<String>();
+    s.replace_range(
+        ix..ix + token_len,
+        format!("\x1b[91m{}\x1b[0m", highlight).as_str(),
+    );
     return s;
 }
