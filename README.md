@@ -58,7 +58,7 @@ def save_div(a: float, b: float) -> Result[float, DivByZeroErr]:
 a: int = 10;
 b = 10;
 ```
-- [] Support for reference and value semantics
+- [ ] Support for reference and value semantics
 ```
 def fn_that_takes_a_list_ref(l: *mut list[int]) -> ():
     l.append(10)
