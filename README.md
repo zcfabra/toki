@@ -58,3 +58,30 @@ def save_div(a: float, b: float) -> Result[float, DivByZeroErr]:
 a: int = 10;
 b = 10;
 ```
+- [] Support for reference and value semantics
+```
+def fn_that_takes_a_list_ref(l: *mut list[int]) -> ():
+    l.append(10)
+
+def fn_that_takes_a_list(l: mut list[int]) -> ():
+    # This 'l' variable is local to the function, will not change the passed-in-list 
+    # in the parent scope
+    l.append(10)
+
+def list_printer(l: mut list[int]) -> ():
+    # Even thought this list is passed-by-value, no copy occurs
+    # because Funpy implements 'copy-on-write'
+
+    for each in l:
+        print(each)
+
+l: mut list[int] = [10, 20, 30] 
+
+fn_that_takes_a_list_ref(&l);
+
+fn_that_takes_a_list(l);
+list_printer(l);
+
+print(l)  # '[10, 20, 30, 40]'
+
+```
