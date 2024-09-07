@@ -54,7 +54,7 @@ def save_div(a: float, b: float) -> Result[float, DivByZeroErr]:
 ```
 - [ ] Support for reference and value semantics
 ```
-def fn_that_takes_a_list_ref(l: *mut list[int]) -> ():
+def fn_that_takes_a_list_ref(l: ref mut list[int]) -> ():
     l.append(10)
 
 def fn_that_takes_a_list(l: mut list[int]) -> ():
@@ -71,7 +71,7 @@ def list_printer(l: mut list[int]) -> ():
 
 l: mut list[int] = [10, 20, 30] 
 
-fn_that_takes_a_list_ref(&l);
+fn_that_takes_a_list_ref(ref l);
 
 fn_that_takes_a_list(l);
 list_printer(l);
@@ -87,7 +87,7 @@ struct Lunch:
 
 enum LunchType:
     Soup(volume: float)
-    Sandwich(weight: float, toppings: \*list[str])
+    Sandwich(weight: float, toppings: ref list[str])
     Salad
 
 enum MealType:
