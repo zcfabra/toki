@@ -50,7 +50,7 @@ def save_div(a: float, b: float) -> Result[float, DivByZeroErr]:
     if b == 0:
         Err(DivByZeroErr)
     else:
-        a / b
+        Ok(a / b)
 ```
 - [ ] Type inference
 ```
