@@ -52,12 +52,6 @@ def save_div(a: float, b: float) -> Result[float, DivByZeroErr]:
     else:
         Ok(a / b)
 ```
-- [ ] Type inference
-```
-# Both valid
-a: int = 10;
-b = 10;
-```
 - [ ] Support for reference and value semantics
 ```
 def fn_that_takes_a_list_ref(l: *mut list[int]) -> ():
@@ -85,3 +79,27 @@ list_printer(l);
 print(l)  # '[10, 20, 30, 40]'
 
 ```
+- [ ] Algebraic Data Types 
+```
+struct Lunch:
+    cost: int
+    type: LunchType
+
+enum LunchType:
+    Soup(volume: float)
+    Sandwich(weight: float, toppings: \*list[str])
+    Salad
+
+enum MealType:
+    Breakfast
+    Lunch(Lunch)
+    Dinner
+
+```
+- [ ] Type inference
+```
+# Both valid
+a: int = 10;
+b = 10;
+```
+
