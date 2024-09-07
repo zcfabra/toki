@@ -55,7 +55,7 @@ def save_div(a: float, b: float) -> Result[float, DivByZeroErr]:
 - [ ] Support for reference and value semantics
 ```
 def fn_that_takes_a_list_ref(l: ref mut list[int]) -> ():
-    l.append(10)
+    l.append(40)
 
 def fn_that_takes_a_list(l: mut list[int]) -> ():
     # This 'l' variable is local to the function, will not change the passed-in-list 
