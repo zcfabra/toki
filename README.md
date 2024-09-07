@@ -46,11 +46,11 @@ match maybe_name:
 ```
 - [ ] Errors-as-values through Rust-style Result types
 ```
-def save_div(dividend: float, divisor: float) -> Result[float, DivByZeroErr]:
-    return if b == 0:
+def save_div(a: float, b: float) -> Result[float, DivByZeroErr]:
+    if b == 0:
         Err(DivByZeroErr)
     else:
-        dividend / divisor
+        a / b
 ```
 - [ ] Type inference
 ```
