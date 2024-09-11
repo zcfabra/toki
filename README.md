@@ -1,4 +1,4 @@
-# FunPy: If a Python ate a crab 
+# TokiLang: If a Python ate a crab 
 
 So it's Python, but with none of the annoying stuff (exceptions, classes, etc)
 and many of the nicest features from Rust.
