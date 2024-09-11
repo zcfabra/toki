@@ -5,6 +5,7 @@ pub struct Lexer<'src> {
     rest: &'src str,
 
     byte: usize,
+    just_after_newline: bool,
 }
 
 type SourcePostion = usize;
@@ -40,9 +41,11 @@ impl std::error::Error for LexErr {
 
 enum Started<'src> {
     IfEqualElse(Token<'src>, Token<'src>),
+    Minus,
     String,
     Numeric,
     Ident,
+    Spaces,
 }
 
 impl<'src> Lexer<'src> {
@@ -51,6 +54,7 @@ impl<'src> Lexer<'src> {
             src,
             rest: src,
             byte: 0,
+            just_after_newline: false,
         }
     }
 }
@@ -60,32 +64,42 @@ impl<'src> Iterator for Lexer<'src> {
 
     fn next(&mut self) -> Option<Self::Item> {
         let mut c_at = self.byte;
-
         let mut chars = self.rest.chars();
         let mut c = chars.next()?;
 
-        while c == ' ' {
+        while c == ' ' && !self.just_after_newline {
             self.byte += c.len_utf8();
             c_at = self.byte;
             self.rest = &self.rest[c.len_utf8()..];
             c = chars.next()?;
         }
+
         let c_rest = self.rest;
 
         self.byte += c.len_utf8();
         self.rest = chars.as_str();
 
+        if c == '\n' {
+            self.just_after_newline = true;
+            return Some(Ok((c_at, Token::Newline)));
+        } else {
+            self.just_after_newline = false;
+        }
+
         let started = match c {
-            '\n' => return Some(Ok((c_at, Token::Newline))),
             '(' => return Some(Ok((c_at, Token::LParen))),
             ')' => return Some(Ok((c_at, Token::RParen))),
+            ':' => return Some(Ok((c_at, Token::Colon))),
+            ';' => return Some(Ok((c_at, Token::Semicolon))),
 
+            '-' => Started::Minus,
             '+' => Started::IfEqualElse(Token::Add, Token::AddEq),
-            '-' => Started::IfEqualElse(Token::Sub, Token::SubEq),
             '*' => Started::IfEqualElse(Token::Mul, Token::MulEq),
             '/' => Started::IfEqualElse(Token::Div, Token::DivEq),
             '!' => Started::IfEqualElse(Token::Bang, Token::BangEq),
+            '=' => Started::IfEqualElse(Token::Eq, Token::DoubleEq),
 
+            ' ' => Started::Spaces,
             '"' => Started::String,
             '0'..='9' => Started::Numeric,
             a if a.is_alphabetic() => Started::Ident,
@@ -94,6 +108,18 @@ impl<'src> Iterator for Lexer<'src> {
         };
 
         Some(Ok(match started {
+            Started::Spaces => {
+                let space_end_ix =
+                    c_rest.find(|c| c != ' ').unwrap_or_else(|| c_rest.len());
+                let spaces = &c_rest[..space_end_ix];
+
+                let n_bytes = spaces.len() - c.len_utf8();
+
+                self.byte += n_bytes;
+                self.rest = &self.rest[n_bytes..];
+
+                (c_at, Token::Spaces(spaces.len()))
+            }
             Started::Numeric => {
                 let numeric_end_ix = c_rest
                     .find(|c: char| !(c.is_numeric() || c == '_'))
@@ -120,7 +146,10 @@ impl<'src> Iterator for Lexer<'src> {
                 self.byte += n_bytes;
                 self.rest = &self.rest[n_bytes..];
 
-                (c_at, get_keyword(ident).unwrap_or_else(||Token::Ident(ident)))
+                (
+                    c_at,
+                    get_keyword(ident).unwrap_or_else(|| Token::Ident(ident)),
+                )
             }
             Started::String => {
                 if let Some(str_end_ix) = c_rest[1..].find(|c| c == '"') {
@@ -148,6 +177,20 @@ impl<'src> Iterator for Lexer<'src> {
                 };
                 (c_at, tok)
             }
+            Started::Minus => {
+                let tok = if self.rest.starts_with('=') {
+                    self.byte += '='.len_utf8();
+                    self.rest = &self.rest[1..];
+                    Token::SubEq
+                } else if self.rest.starts_with('>') {
+                    self.byte += '='.len_utf8();
+                    self.rest = &self.rest[1..];
+                    Token::Arrow
+                } else {
+                    Token::Sub
+                };
+                (c_at, tok)
+            }
             _ => todo!(),
         }))
     }
@@ -158,6 +201,10 @@ fn get_keyword<'src>(ident: &'src str) -> Option<Token<'src>> {
         "and" => Token::And,
         "or" => Token::Or,
         "not" => Token::Not,
+        "mut" => Token::Mut,
+        "return" => Token::Return,
+        "if" => Token::If,
+        "else" => Token::Else,
         _ => return None,
     })
 }

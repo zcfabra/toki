@@ -4,6 +4,9 @@ pub type SpannedToken<'src> = (usize, Token<'src>);
 
 #[derive(Debug, PartialEq)]
 pub enum Token<'src> {
+    // Have to give special treatment to sequences of spaces b/c
+    Spaces(usize),
+
     IntLiteral(i32),
     FloatLiteral(f32),
     StrLiteral(&'src str),
@@ -33,35 +36,25 @@ pub enum Token<'src> {
     Not,
     And,
     Or,
+
+    Arrow,
+    Colon,
+    Semicolon,
+    Walrus,
+
+    // Non-Operator Keywords
+    Mut,
+    If,
+    Else,
+    Return,
+    // Struct,
+    // Def,
+    // Enum,
 }
 
 impl Token<'_> {
     pub fn src_len(&self) -> usize {
-        match self {
-            Self::Eq
-            | Self::Bang
-            | Self::Add
-            | Self::Sub
-            | Self::Mul
-            | Self::Div
-            | Self::LParen
-            | Self::RParen
-            | Self::Newline => 1,
-            Self::DoubleEq
-            | Self::BangEq
-            | Self::AddEq
-            | Self::SubEq
-            | Self::MulEq
-            | Self::DivEq
-            | Self::Or => 2,
-
-            Self::And | Self::Not => 3,
-
-            Self::IntLiteral(i) => format!("{}", i).len(),
-            Self::FloatLiteral(f) => format!("{}", f).len(),
-            Self::StrLiteral(s) => s.len() + 2, // Add length of quotations
-            Self::Ident(id) => id.len(),
-        }
+        format!("{}", self).chars().count()
     }
 }
 
@@ -75,6 +68,12 @@ impl std::fmt::Display for Token<'_> {
                 Self::FloatLiteral(fl) => return write!(f, "{}", fl),
                 Self::StrLiteral(s) => return write!(f, "{}", s),
                 Self::Ident(id) => return write!(f, "{}", id),
+                Self::Spaces(n) =>
+                    return write!(
+                        f,
+                        "{}",
+                        std::iter::repeat(" ").take(*n).collect::<String>().as_str()
+                    ),
 
                 Self::LParen => "(",
                 Self::RParen => ")",
@@ -98,7 +97,18 @@ impl std::fmt::Display for Token<'_> {
                 Self::And => "and",
                 Self::Or => "or",
 
-                Self::Newline => "[NEWLINE]",
+                Self::Newline => "\\n",
+
+                Self::Arrow => "->",
+
+                Self::Colon => ":",
+                Self::Semicolon => ";",
+                Self::Walrus => ":=",
+
+                Self::Mut => "mut",
+                Self::If => "If",
+                Self::Else => "Else",
+                Self::Return => "return",
             }
         )
     }

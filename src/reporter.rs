@@ -1,12 +1,12 @@
-use crate::ast::AstNode;
+use crate::ast::AstBlock;
 use crate::parser::ParseErr;
 
 // TODO: Extract the print formatting stuff
 
 pub fn report<'src>(
-    parsed: Result<AstNode<'src>, ParseErr>,
+    parsed: Result<AstBlock<'src>, ParseErr>,
     src: &'src str,
-) -> Result<AstNode<'src>, String> {
+) -> Result<AstBlock<'src>, String> {
     let err = match parsed {
         Err(e) => e,
         Ok(r) => return Ok(r),
@@ -21,6 +21,17 @@ pub fn report<'src>(
 
             format!(
                 "\n\x1b[1mError: Expected Expression at Position {}:{}:\x1b[0m\n\n\t{}\n\t{}\n\n",
+                line_no, ix, highlight_line, line_w_underline
+            )
+        }
+        ParseErr::ExpectedTypeAnnotation(ix, len) => {
+            let (line, line_no, ix_in_line) = extract_line(src, ix);
+
+            let line_w_underline = underline_line(&line, ix_in_line, len);
+            let highlight_line = highlight_line(&line, ix_in_line, len);
+
+            format!(
+                "\n\x1b[1mError: Expected Valid Type In Annotation at Position {}:{}:\x1b[0m\n\n\t{}\n\t{}\n\n",
                 line_no, ix, highlight_line, line_w_underline
             )
         }
@@ -50,19 +61,45 @@ fn extract_line(s: &str, ix: usize) -> (&str, usize, usize) {
 
 fn highlight_line(line: &str, ix: usize, token_len: usize) -> String {
     let mut s = line.to_string();
+
+    let start = line
+        .char_indices()
+        .nth(ix)
+        .map(|(pos, _)| pos)
+        .unwrap_or(ix);
+
+    let end = line
+        .char_indices()
+        .nth(ix + token_len)
+        .map(|(pos, _)| pos)
+        .unwrap_or(line.len());
+
     s.replace_range(
-        ix..ix + token_len,
-        format!("\x1b[91m{}\x1b[0m", &line[ix..ix + token_len]).as_str(),
+        start..end,
+        format!("\x1b[91m{}\x1b[0m", &line[start..end]).as_str(),
     );
     return s;
 }
 
 fn underline_line(line: &str, ix: usize, token_len: usize) -> String {
-    let mut s = std::iter::repeat(" ").take(line.len()).collect::<String>();
+    let mut s = std::iter::repeat(" ")
+        .take(line.chars().count())
+        .collect::<String>();
     let highlight = std::iter::repeat("^").take(token_len).collect::<String>();
-    s.replace_range(
-        ix..ix + token_len,
-        format!("\x1b[91m{}\x1b[0m", highlight).as_str(),
-    );
+    let red = format!("\x1b[91m{}\x1b[0m", highlight);
+
+    let start = line
+        .char_indices()
+        .nth(ix)
+        .map(|(pos, _)| pos)
+        .unwrap_or(ix);
+
+    let end = line
+        .char_indices()
+        .nth(ix + token_len)
+        .map(|(pos, _)| pos)
+        .unwrap_or(line.len());
+
+    s.replace_range(start..end, red.as_str());
     return s;
 }

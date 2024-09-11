@@ -1,10 +1,39 @@
 use crate::token::{Operator, Token};
 
+#[derive(Debug, PartialEq, Eq)]
+pub enum TypeAnnotation<'src> {
+    Int,
+    Str,
+    Bool,
+    Dynamic(&'src str),
+    Mut(Box<TypeAnnotation<'src>>),
+}
+
+impl std::fmt::Display for TypeAnnotation<'_> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "{}",
+            match self {
+                Self::Int => "int",
+                Self::Str => "str",
+                Self::Bool => "bool",
+                Self::Dynamic(d) => d,
+                Self::Mut(t) => return write!(f, "mut {}", t),
+            }
+        )
+    }
+}
+
 #[derive(Debug, PartialEq)]
 pub enum AstLiteral<'src> {
     Int(Token<'src>),
     Str(Token<'src>),
     Ident(Token<'src>),
+    TypedIdent {
+        name: Token<'src>,
+        type_annotation: TypeAnnotation<'src>,
+    },
 }
 
 impl<'src> From<AstLiteral<'src>> for AstExpr<'src> {
@@ -21,7 +50,11 @@ impl std::fmt::Display for AstLiteral<'_> {
             match self {
                 Self::Int(i) => i,
                 Self::Str(s) => s,
-                Self::Ident(id) => id,
+                Self::Ident(name) => name,
+                Self::TypedIdent {
+                    name,
+                    type_annotation,
+                } => return write!(f, "{}: {}", name, type_annotation),
             }
         )
     }
@@ -72,12 +105,6 @@ pub enum AstNode<'src> {
     Expr(AstExpr<'src>),
 }
 
-impl<'src> From<AstExpr<'src>> for AstNode<'src> {
-    fn from(value: AstExpr<'src>) -> Self {
-        AstNode::Expr(value)
-    }
-}
-
 impl std::fmt::Display for AstNode<'_> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(
@@ -87,5 +114,63 @@ impl std::fmt::Display for AstNode<'_> {
                 Self::Expr(expr) => expr,
             }
         )
+    }
+}
+
+impl<'src> From<AstExpr<'src>> for AstNode<'src> {
+    fn from(value: AstExpr<'src>) -> Self {
+        AstNode::Expr(value)
+    }
+}
+
+#[derive(Debug, PartialEq)]
+pub enum AstStmt<'src> {
+    Expr {
+        expr: AstExpr<'src>,
+        has_semi: bool,
+    },
+    Return(AstExpr<'src>),
+    Assignment {
+        target: AstExpr<'src>,
+        assigned: AstExpr<'src>,
+    },
+}
+
+impl std::fmt::Display for AstStmt<'_> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Assignment { target, assigned } => {
+                return write!(f, "{} = {};", target, assigned)
+            }
+            Self::Expr { expr, has_semi } => {
+                let mut expr = format!("{}", expr);
+                if *has_semi {
+                    expr.push(';');
+                }
+                return write!(f, "{}", expr);
+            }
+            Self::Return(e) => return write!(f, "return {};", e),
+        }
+    }
+}
+
+#[derive(Debug, PartialEq)]
+pub struct AstBlock<'src> {
+    stmts: Vec<AstStmt<'src>>,
+}
+
+impl<'src> std::fmt::Display for AstBlock<'src> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let mut str = String::new();
+        for stmt in &self.stmts {
+            str.push_str(format!("{}\n", stmt).as_str());
+        }
+        write!(f, "{}", str)
+    }
+}
+
+impl<'src> From<Vec<AstStmt<'src>>> for AstBlock<'src> {
+    fn from(value: Vec<AstStmt<'src>>) -> Self {
+        AstBlock { stmts: value }
     }
 }
