@@ -67,6 +67,11 @@ impl<'src> Iterator for Lexer<'src> {
         let mut chars = self.rest.chars();
         let mut c = chars.next()?;
 
+        if self.just_after_newline && c != ' ' {
+            self.just_after_newline = false;
+            return Some(Ok((c_at, Token::Spaces(0))));
+        }
+
         while c == ' ' && !self.just_after_newline {
             self.byte += c.len_utf8();
             c_at = self.byte;

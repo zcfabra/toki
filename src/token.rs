@@ -72,7 +72,10 @@ impl std::fmt::Display for Token<'_> {
                     return write!(
                         f,
                         "{}",
-                        std::iter::repeat(" ").take(*n).collect::<String>().as_str()
+                        std::iter::repeat(" ")
+                            .take(*n)
+                            .collect::<String>()
+                            .as_str()
                     ),
 
                 Self::LParen => "(",
@@ -121,6 +124,7 @@ impl Token<'_> {
             Self::Sub => Operator::Sub,
             Self::Mul => Operator::Mul,
             Self::Div => Operator::Div,
+            Self::DoubleEq => Operator::Equals,
             _ => return None,
         })
     }
@@ -132,6 +136,7 @@ pub enum Operator {
     Sub,
     Div,
     Mul,
+    Equals,
 }
 
 impl Operator {
@@ -139,6 +144,7 @@ impl Operator {
         match self {
             Self::Add | Self::Sub => Precedence::AddSub,
             Self::Mul | Self::Div => Precedence::MulDiv,
+            Self::Equals => Precedence::Equality,
         }
     }
 }
@@ -152,6 +158,7 @@ impl std::fmt::Display for Operator {
                 Self::Sub => "-",
                 Self::Mul => "*",
                 Self::Div => "/",
+                Self::Equals => "==",
             }
         )
     }

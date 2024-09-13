@@ -74,9 +74,28 @@ impl std::fmt::Display for AstBinExpr<'_> {
 }
 
 #[derive(Debug, PartialEq)]
+pub struct AstConditional<'src> {
+    pub condition: Box<AstExpr<'src>>,
+    pub if_block: AstBlock<'src>,
+    pub else_block: Option<AstBlock<'src>>,
+}
+
+impl<'src> From<AstConditional<'src>> for AstExpr<'src> {
+    fn from(value: AstConditional<'src>) -> Self {
+        AstExpr::ConditionalExpr(value)
+    }
+}
+impl std::fmt::Display for AstConditional<'_> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "if {}:\n{}", self.condition, self.if_block)
+    }
+}
+
+#[derive(Debug, PartialEq)]
 pub enum AstExpr<'src> {
     BinExpr(AstBinExpr<'src>),
     LitExpr(AstLiteral<'src>),
+    ConditionalExpr(AstConditional<'src>),
 }
 
 impl<'src> From<(AstExpr<'src>, Operator, AstExpr<'src>)> for AstExpr<'src> {
@@ -94,6 +113,7 @@ impl<'src> From<(AstExpr<'src>, Operator, AstExpr<'src>)> for AstExpr<'src> {
 impl std::fmt::Display for AstExpr<'_> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
+            Self::ConditionalExpr(c) => write!(f, "{}", c),
             Self::BinExpr(bin) => write!(f, "{}", bin),
             Self::LitExpr(lit) => write!(f, "{}", lit),
         }
@@ -156,21 +176,26 @@ impl std::fmt::Display for AstStmt<'_> {
 
 #[derive(Debug, PartialEq)]
 pub struct AstBlock<'src> {
+    indent: usize,
     stmts: Vec<AstStmt<'src>>,
 }
 
 impl<'src> std::fmt::Display for AstBlock<'src> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let mut str = String::new();
+        let spaces = std::iter::repeat(" ")
+            .take(self.indent * 4)
+            .collect::<String>();
         for stmt in &self.stmts {
-            str.push_str(format!("{}\n", stmt).as_str());
+            str.push_str(format!("{}{}\n", spaces, stmt).as_str());
         }
         write!(f, "{}", str)
     }
 }
 
-impl<'src> From<Vec<AstStmt<'src>>> for AstBlock<'src> {
-    fn from(value: Vec<AstStmt<'src>>) -> Self {
-        AstBlock { stmts: value }
+impl<'src> From<(Vec<AstStmt<'src>>, usize)> for AstBlock<'src> {
+    fn from(value: (Vec<AstStmt<'src>>, usize)) -> Self {
+        let (stmts, indent) = value;
+        AstBlock { stmts, indent }
     }
 }

@@ -14,29 +14,46 @@ pub fn report<'src>(
 
     Err(match err {
         ParseErr::InvalidExpressionStart(ix, len) => {
-            let (line, line_no, ix_in_line) = extract_line(src, ix);
-
-            let line_w_underline = underline_line(&line, ix_in_line, len);
-            let highlight_line = highlight_line(&line, ix_in_line, len);
-
-            format!(
-                "\n\x1b[1mError: Expected Expression at Position {}:{}:\x1b[0m\n\n\t{}\n\t{}\n\n",
-                line_no, ix, highlight_line, line_w_underline
-            )
+            print_err(src, "Expected Expression at Position", ix, len)
         }
-        ParseErr::ExpectedTypeAnnotation(ix, len) => {
-            let (line, line_no, ix_in_line) = extract_line(src, ix);
-
-            let line_w_underline = underline_line(&line, ix_in_line, len);
-            let highlight_line = highlight_line(&line, ix_in_line, len);
-
-            format!(
-                "\n\x1b[1mError: Expected Valid Type In Annotation at Position {}:{}:\x1b[0m\n\n\t{}\n\t{}\n\n",
-                line_no, ix, highlight_line, line_w_underline
-            )
+        ParseErr::ExpectedSemi(ix, len) => {
+            print_err(src, "Expected Semicolon at Position", ix, len)
         }
-        _ => todo!(),
+        ParseErr::ExpectedTypeAnnotation(ix, len) => print_err(
+            src,
+            "Expected Valid Type In Annotation at Position",
+            ix,
+            len,
+        ),
+        ParseErr::ExpectedColon(ix, len) => {
+            print_err(src, "Expected Colon Starting Block", ix, len)
+        }
+        ParseErr::UnexpectedIndent(ix, len, expected_level) => print_err(
+            src,
+            format!(
+                "Unexpected Indent Level At Position (Expected {})",
+                expected_level
+            ).as_str(),
+            ix,
+            len,
+        ),
+        e => {
+            println!("Encountered {:?}", e);
+            todo!()
+        }
     })
+}
+
+fn print_err(src: &str, err_msg: &str, ix: usize, len: usize) -> String {
+    let (line, line_no, ix_in_line) = extract_line(src, ix);
+
+    let line_w_underline = underline_line(&line, ix_in_line, len);
+    let highlight_line = highlight_line(&line, ix_in_line, len);
+
+    format!(
+        "\n\x1b[1mError: {} {}:{}:\x1b[0m\n\n\t{}\n\t{}\n\n",
+        err_msg, line_no, ix, highlight_line, line_w_underline
+    )
 }
 
 fn extract_line(s: &str, ix: usize) -> (&str, usize, usize) {
