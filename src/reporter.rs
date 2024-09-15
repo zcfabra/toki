@@ -28,15 +28,22 @@ pub fn report<'src>(
         ParseErr::ExpectedColon(ix, len) => {
             print_err(src, "Expected Colon Starting Block", ix, len)
         }
+        ParseErr::UnexpectedStmt(ix, len) => {
+            print_err(src, "Unexpected Statement (Previous statement may be missing a semicolon)", ix, len)
+        }
         ParseErr::UnexpectedIndent(ix, len, expected_level) => print_err(
             src,
             format!(
                 "Unexpected Indent Level At Position (Expected {})",
                 expected_level
-            ).as_str(),
+            )
+            .as_str(),
             ix,
             len,
         ),
+        ParseErr::ExpectedToken(ix, len, t) => {
+            print_err(src, format!("Expected '{}' at Position", t).as_str(), ix, len)
+        }
         e => {
             println!("Encountered {:?}", e);
             todo!()

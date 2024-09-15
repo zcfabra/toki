@@ -9,6 +9,7 @@ pub struct Lexer<'src> {
 }
 
 type SourcePostion = usize;
+pub type Result<T> = std::result::Result<T, LexErr>;
 
 pub struct WithSrcErr<'src, 'err, E>
 where
@@ -60,7 +61,7 @@ impl<'src> Lexer<'src> {
 }
 
 impl<'src> Iterator for Lexer<'src> {
-    type Item = Result<SpannedToken<'src>, LexErr>;
+    type Item = Result<SpannedToken<'src>>;
 
     fn next(&mut self) -> Option<Self::Item> {
         let mut c_at = self.byte;
@@ -210,6 +211,7 @@ fn get_keyword<'src>(ident: &'src str) -> Option<Token<'src>> {
         "return" => Token::Return,
         "if" => Token::If,
         "else" => Token::Else,
+        "def" => Token::Def,
         _ => return None,
     })
 }

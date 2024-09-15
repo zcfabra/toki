@@ -77,7 +77,7 @@ impl std::fmt::Display for AstBinExpr<'_> {
 pub struct AstConditional<'src> {
     pub condition: Box<AstExpr<'src>>,
     pub if_block: AstBlock<'src>,
-    pub else_block: Option<AstBlock<'src>>,
+    pub else_block: Option<Box<AstExpr<'src>>>,
 }
 
 impl<'src> From<AstConditional<'src>> for AstExpr<'src> {
@@ -87,7 +87,13 @@ impl<'src> From<AstConditional<'src>> for AstExpr<'src> {
 }
 impl std::fmt::Display for AstConditional<'_> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "if {}:\n{}", self.condition, self.if_block)
+        let else_ = if let Some(expr) = &self.else_block {
+            format!("else:\n{}", expr)
+        } else {
+            "".to_string()
+        };
+
+        write!(f, "if {}:\n{}{}", self.condition, self.if_block, else_)
     }
 }
 
@@ -96,6 +102,7 @@ pub enum AstExpr<'src> {
     BinExpr(AstBinExpr<'src>),
     LitExpr(AstLiteral<'src>),
     ConditionalExpr(AstConditional<'src>),
+    BlockExpr(AstBlock<'src>),
 }
 
 impl<'src> From<(AstExpr<'src>, Operator, AstExpr<'src>)> for AstExpr<'src> {
@@ -116,6 +123,7 @@ impl std::fmt::Display for AstExpr<'_> {
             Self::ConditionalExpr(c) => write!(f, "{}", c),
             Self::BinExpr(bin) => write!(f, "{}", bin),
             Self::LitExpr(lit) => write!(f, "{}", lit),
+            Self::BlockExpr(block) => write!(f, "{}", block),
         }
     }
 }
@@ -154,11 +162,27 @@ pub enum AstStmt<'src> {
         target: AstExpr<'src>,
         assigned: AstExpr<'src>,
     },
+    FnDef {
+        name: AstLiteral<'src>,
+        args: Vec<TypeAnnotation<'src>>,
+        body: AstBlock<'src>,
+        return_type: TypeAnnotation<'src>
+    },
 }
 
 impl std::fmt::Display for AstStmt<'_> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
+            Self::FnDef { name, args, body, return_type } => {
+                // TODO: Make this efficient
+                let args_str = args
+                    .iter()
+                    .map(|a| format!("{}", a))
+                    .collect::<Vec<String>>()
+                    .join(",");
+
+                return write!(f, "def {}({}) -> {}:\n{};", name, args_str, return_type, body);
+            }
             Self::Assignment { target, assigned } => {
                 return write!(f, "{} = {};", target, assigned)
             }
@@ -176,8 +200,9 @@ impl std::fmt::Display for AstStmt<'_> {
 
 #[derive(Debug, PartialEq)]
 pub struct AstBlock<'src> {
-    indent: usize,
-    stmts: Vec<AstStmt<'src>>,
+    pub indent: usize,
+    pub stmts: Vec<AstStmt<'src>>,
+    pub has_semi: bool,
 }
 
 impl<'src> std::fmt::Display for AstBlock<'src> {
@@ -190,12 +215,5 @@ impl<'src> std::fmt::Display for AstBlock<'src> {
             str.push_str(format!("{}{}\n", spaces, stmt).as_str());
         }
         write!(f, "{}", str)
-    }
-}
-
-impl<'src> From<(Vec<AstStmt<'src>>, usize)> for AstBlock<'src> {
-    fn from(value: (Vec<AstStmt<'src>>, usize)) -> Self {
-        let (stmts, indent) = value;
-        AstBlock { stmts, indent }
     }
 }

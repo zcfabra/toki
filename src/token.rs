@@ -47,8 +47,8 @@ pub enum Token<'src> {
     If,
     Else,
     Return,
+    Def,
     // Struct,
-    // Def,
     // Enum,
 }
 
@@ -112,6 +112,7 @@ impl std::fmt::Display for Token<'_> {
                 Self::If => "If",
                 Self::Else => "Else",
                 Self::Return => "return",
+                Self::Def => "def",
             }
         )
     }
