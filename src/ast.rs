@@ -164,7 +164,7 @@ pub enum AstStmt<'src> {
     },
     FnDef {
         name: AstLiteral<'src>,
-        args: Vec<TypeAnnotation<'src>>,
+        args: Vec<AstLiteral<'src>>,
         body: AstBlock<'src>,
         return_type: TypeAnnotation<'src>
     },

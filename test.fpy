@@ -9,9 +9,12 @@ outline = 90;
 hi = 90;
 hi = 90;
 
-def my_fn() -> bool:
-    a = a + a;
-    b = a + a + b;
+def my_fn(x: int, y: bool) -> int:
+    if y:
+        a = a + a;
+    else:
+        a = a * a;
+    a + a + b + x
 
     
 a: mut int = 100;

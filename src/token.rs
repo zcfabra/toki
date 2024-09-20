@@ -41,6 +41,7 @@ pub enum Token<'src> {
     Colon,
     Semicolon,
     Walrus,
+    Comma,
 
     // Non-Operator Keywords
     Mut,
@@ -102,6 +103,7 @@ impl std::fmt::Display for Token<'_> {
 
                 Self::Newline => "\\n",
 
+                Self::Comma => ",",
                 Self::Arrow => "->",
 
                 Self::Colon => ":",

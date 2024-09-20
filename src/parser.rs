@@ -222,12 +222,30 @@ where
 
 fn parse_fn_args<'src, I>(
     tokens: &mut Peekable<I>,
-) -> Result<Vec<TypeAnnotation<'src>>>
+) -> Result<Vec<AstLiteral<'src>>>
 where
     I: Iterator<Item = TokenIter<'src>>,
 {
+    let mut args = Vec::new();
+
+    loop {
+        if !matches!(tokens.peek(), Some(Ok((_, Token::Ident(_))))) {
+            break;
+        }
+
+        let (_, tok) = get_next_token(tokens)?;
+
+        args.push(AstLiteral::TypedIdent {
+            name: tok,
+            type_annotation: parse_annotation(tokens)?,
+        });
+
+        if matches!(tokens.peek(), Some(Ok((_, Token::Comma)))) {
+            tokens.next();
+        }
+    }
     eat(tokens, Token::RParen)?;
-    Ok(Vec::new())
+    Ok(args)
 }
 
 pub fn parse_fn_def<'src, I>(tokens: &mut Peekable<I>) -> Result<AstStmt<'src>>

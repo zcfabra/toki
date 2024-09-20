@@ -97,6 +97,7 @@ impl<'src> Iterator for Lexer<'src> {
             ')' => return Some(Ok((c_at, Token::RParen))),
             ':' => return Some(Ok((c_at, Token::Colon))),
             ';' => return Some(Ok((c_at, Token::Semicolon))),
+            ',' => return Some(Ok((c_at, Token::Comma))),
 
             '-' => Started::Minus,
             '+' => Started::IfEqualElse(Token::Add, Token::AddEq),
