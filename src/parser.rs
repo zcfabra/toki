@@ -108,7 +108,6 @@ where
             }
             Some(Ok((ix, tok))) => {
                 if has_no_semi_expr {
-                    println!("TOK: {}", &tok);
                     return Err(ParseErr::UnexpectedStmt(*ix, tok.src_len()));
                 }
 
@@ -232,7 +231,6 @@ where
     eat(tokens, Token::Indent)?;
 
     let body = parse_block(tokens, indent + 1)?;
-    println!("END FN BLOCK");
 
     return Ok(AstStmt::FnDef {
         name,
@@ -348,7 +346,6 @@ where
     }
     let if_block = parse_block(tokens, indent + 1)?;
 
-    println!("SHOULD BE ELSE {:?}", tokens.peek());
     let else_block = if matches!(tokens.peek(), Some(Ok((_, Token::Else)))) {
         // Consume 'else'
         tokens.next();
