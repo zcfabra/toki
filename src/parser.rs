@@ -1,7 +1,4 @@
-use crate::ast::{
-    AstBinExpr, AstBlock, AstConditional, AstExpr, AstLiteral, AstNode,
-    AstStmt, TypeAnnotation,
-};
+use crate::ast::{AstBinExpr, AstBlock, AstConditional, AstExpr, AstLiteral, AstNode, AstStmt, TypeAnnotation};
 use crate::lexer::{LexErr, Result as LexResult};
 use crate::token::{SpannedToken, Token};
 use core::iter::Peekable;
@@ -68,9 +65,7 @@ type TokenIter<'src> = LexResult<SpannedToken<'src>>;
 
 type Result<T> = std::result::Result<T, ParseErr>;
 
-pub fn get_next_token<'src, I>(
-    tokens: &mut Peekable<I>,
-) -> Result<SpannedToken<'src>>
+pub fn get_next_token<'src, I>(tokens: &mut Peekable<I>) -> Result<SpannedToken<'src>>
 where
     I: Iterator<Item = TokenIter<'src>>,
 {
@@ -87,30 +82,15 @@ where
 {
     // Entry point of the parser
     let peekable_tokens = &mut tokens.peekable();
-    return Ok(parse_block(peekable_tokens)?);
+    return Ok(parse_block(peekable_tokens, 0)?);
 }
 
-pub fn get_block_indent<'src, I>(tokens: &mut Peekable<I>) -> usize
-where
-    I: Iterator<Item = TokenIter<'src>>,
-{
-    if let Some(Ok((_, Token::Spaces(n_spaces)))) = tokens.peek() {
-        let indent = n_spaces / 4;
-        tokens.next();
-        indent
-    } else {
-        0
-    }
-}
-pub fn parse_block<'src, I>(tokens: &mut Peekable<I>) -> Result<AstBlock<'src>>
+pub fn parse_block<'src, I>(tokens: &mut Peekable<I>, indent: usize) -> Result<AstBlock<'src>>
 where
     I: Iterator<Item = TokenIter<'src>>,
 {
     let mut stmts = Vec::new();
     let mut has_no_semi_expr = false;
-
-    // Need to handle no spaces to deal w/ the very first statement in the program
-    let indent = get_block_indent(tokens);
 
     loop {
         match tokens.peek() {
@@ -118,39 +98,23 @@ where
             Some(Ok((_, Token::Newline))) => {
                 tokens.next();
             }
-            Some(Ok((_, Token::Spaces(n_spaces)))) => {
-                let found_indent = n_spaces / 4;
-                if found_indent < indent {
-                    tokens.next();
-                    if !matches!(tokens.peek(), Some(Ok((_, Token::Newline))))
-                    {
-                        break;
-                    }
-                } else if found_indent > indent {
-                    let (ix, tok) = get_next_token(tokens)?;
-                    return Err(ParseErr::UnexpectedIndent(
-                        ix,
-                        tok.src_len(),
-                        indent,
-                    ));
-                } else {
-                    tokens.next();
-                }
+            Some(Ok((_, Token::Indent))) => {
+                let (ix, tok) = get_next_token(tokens)?;
+                return Err(ParseErr::UnexpectedIndent(ix, tok.src_len(), 0));
+            }
+            Some(Ok((_, Token::Dedent))) => {
+                tokens.next();
+                break;
             }
             Some(Ok((ix, tok))) => {
                 if has_no_semi_expr {
+                    println!("TOK: {}", &tok);
                     return Err(ParseErr::UnexpectedStmt(*ix, tok.src_len()));
                 }
 
-                let stmt = parse_stmt(tokens)?;
+                let stmt = parse_stmt(tokens, indent)?;
 
-                if matches!(
-                    stmt,
-                    AstStmt::Expr {
-                        has_semi: false,
-                        ..
-                    }
-                ) {
+                if matches!(stmt, AstStmt::Expr { has_semi: false, .. }) {
                     has_no_semi_expr = true;
                 }
 
@@ -167,7 +131,7 @@ where
     };
     Ok(block)
 }
-pub fn parse_stmt<'src, I>(tokens: &mut Peekable<I>) -> Result<AstStmt<'src>>
+pub fn parse_stmt<'src, I>(tokens: &mut Peekable<I>, indent: usize) -> Result<AstStmt<'src>>
 where
     I: Iterator<Item = TokenIter<'src>>,
 {
@@ -182,7 +146,7 @@ where
     if matches!(tokens.peek(), Some(Ok((_, Token::Return)))) {
         tokens.next();
 
-        let expr = parse_expr(tokens, Precedence::Lowest, context)?;
+        let expr = parse_expr(tokens, Precedence::Lowest, indent, context)?;
 
         eat(tokens, Token::Semicolon)?;
 
@@ -190,14 +154,14 @@ where
     }
 
     if matches!(tokens.peek(), Some(Ok((_, Token::Def)))) {
-        return Ok(parse_fn_def(tokens)?);
+        return Ok(parse_fn_def(tokens, indent)?);
     }
 
-    let primary_expr = parse_primary_expr(tokens, context)?;
+    let primary_expr = parse_primary_expr(tokens, indent, context)?;
 
     if let Some(Ok((_, Token::Eq))) = tokens.peek() {
         tokens.next();
-        let to_assign = parse_expr(tokens, Precedence::Lowest, context)?;
+        let to_assign = parse_expr(tokens, Precedence::Lowest, indent, context)?;
 
         eat(tokens, Token::Semicolon)?;
 
@@ -207,11 +171,9 @@ where
         });
     }
 
-    let expr =
-        parse_expr_with(primary_expr, tokens, Precedence::Lowest, context)?;
+    let expr = parse_expr_with(primary_expr, tokens, Precedence::Lowest, indent, context)?;
 
-    let has_semi_next =
-        matches!(tokens.peek(), Some(Ok((_, Token::Semicolon))));
+    let has_semi_next = matches!(tokens.peek(), Some(Ok((_, Token::Semicolon))));
     if has_semi_next {
         eat(tokens, Token::Semicolon)?;
     }
@@ -220,9 +182,7 @@ where
     Ok(AstStmt::Expr { expr, has_semi })
 }
 
-fn parse_fn_args<'src, I>(
-    tokens: &mut Peekable<I>,
-) -> Result<Vec<AstLiteral<'src>>>
+fn parse_fn_args<'src, I>(tokens: &mut Peekable<I>) -> Result<Vec<AstLiteral<'src>>>
 where
     I: Iterator<Item = TokenIter<'src>>,
 {
@@ -248,7 +208,7 @@ where
     Ok(args)
 }
 
-pub fn parse_fn_def<'src, I>(tokens: &mut Peekable<I>) -> Result<AstStmt<'src>>
+pub fn parse_fn_def<'src, I>(tokens: &mut Peekable<I>, indent: usize) -> Result<AstStmt<'src>>
 where
     I: Iterator<Item = TokenIter<'src>>,
 {
@@ -269,14 +229,10 @@ where
 
     eat(tokens, Token::Colon)?;
     eat(tokens, Token::Newline)?;
+    eat(tokens, Token::Indent)?;
 
-    if !matches!(tokens.peek(), Some(Ok((_, Token::Spaces(spaces)))) if *spaces > 0)
-    {
-        let (ix, tok) = get_next_token(tokens)?;
-        return Err(ParseErr::UnexpectedIndent(ix, tok.src_len(), 1));
-    }
-
-    let body = parse_block(tokens)?;
+    let body = parse_block(tokens, indent + 1)?;
+    println!("END FN BLOCK");
 
     return Ok(AstStmt::FnDef {
         name,
@@ -286,9 +242,7 @@ where
     });
 }
 
-fn parse_type_decl<'src, I>(
-    tokens: &mut Peekable<I>,
-) -> Result<TypeAnnotation<'src>>
+fn parse_type_decl<'src, I>(tokens: &mut Peekable<I>) -> Result<TypeAnnotation<'src>>
 where
     I: Iterator<Item = TokenIter<'src>>,
 {
@@ -324,9 +278,7 @@ pub fn expr_has_semi(expr: &AstExpr<'_>, has_semi_next: bool) -> bool {
         AstExpr::LitExpr(_) => has_semi_next,
         AstExpr::BlockExpr(AstBlock { has_semi, .. }) => *has_semi,
         AstExpr::ConditionalExpr(AstConditional {
-            if_block,
-            else_block,
-            ..
+            if_block, else_block, ..
         }) => {
             if let Some(eb) = else_block {
                 expr_has_semi(&eb, has_semi_next)
@@ -337,10 +289,7 @@ pub fn expr_has_semi(expr: &AstExpr<'_>, has_semi_next: bool) -> bool {
     }
 }
 
-fn parse_primary_expr<'src, I>(
-    tokens: &mut Peekable<I>,
-    context: ParseContext,
-) -> Result<AstExpr<'src>>
+fn parse_primary_expr<'src, I>(tokens: &mut Peekable<I>, indent: usize, context: ParseContext) -> Result<AstExpr<'src>>
 where
     I: Iterator<Item = TokenIter<'src>>,
 {
@@ -349,15 +298,13 @@ where
     let expr = match tok {
         Token::LParen => {
             if matches!(tokens.peek(), Some(Ok((_, Token::Newline)))) {
-                return parse_expr(tokens, Precedence::Lowest, context);
+                return parse_expr(tokens, Precedence::Lowest, indent, context);
             }
-            return parse_expr(tokens, Precedence::Lowest, context);
+            return parse_expr(tokens, Precedence::Lowest, indent, context);
         }
-        Token::If => return Ok(parse_conditional(tokens)?.into()),
+        Token::If => return Ok(parse_conditional(tokens, indent)?.into()),
         id @ Token::Ident(_) => {
-            if matches!(tokens.peek(), Some(Ok((_, Token::Colon))))
-                && context.can_parse_annotation
-            {
+            if matches!(tokens.peek(), Some(Ok((_, Token::Colon)))) && context.can_parse_annotation {
                 AstLiteral::TypedIdent {
                     name: id,
                     type_annotation: parse_annotation(tokens)?,
@@ -378,15 +325,14 @@ where
     Ok(expr.into())
 }
 
-fn parse_conditional<'src, I>(
-    tokens: &mut Peekable<I>,
-) -> Result<AstConditional<'src>>
+fn parse_conditional<'src, I>(tokens: &mut Peekable<I>, indent: usize) -> Result<AstConditional<'src>>
 where
     I: Iterator<Item = TokenIter<'src>>,
 {
     let condition = Box::new(parse_expr(
         tokens,
         Precedence::Lowest,
+        indent,
         ParseContext::new().without_annotation_parsing(),
     )?);
 
@@ -398,21 +344,22 @@ where
 
     if let Some(Ok((_, Token::Newline))) = tokens.peek() {
         tokens.next();
+        eat(tokens, Token::Indent)?;
     }
-    let if_block = parse_block(tokens)?;
+    let if_block = parse_block(tokens, indent + 1)?;
 
+    println!("SHOULD BE ELSE {:?}", tokens.peek());
     let else_block = if matches!(tokens.peek(), Some(Ok((_, Token::Else)))) {
         // Consume 'else'
         tokens.next();
 
         let (ix, tok) = get_next_token(tokens)?;
         let expr = match tok {
-            Token::If => AstExpr::ConditionalExpr(parse_conditional(tokens)?),
+            Token::If => AstExpr::ConditionalExpr(parse_conditional(tokens, indent)?),
             Token::Colon => {
-                if !matches!(tokens.next(), Some(Ok((_, Token::Newline)))) {
-                    return Err(ParseErr::ExpectedNewline(ix, tok.src_len()));
-                }
-                AstExpr::BlockExpr(parse_block(tokens)?)
+                eat(tokens, Token::Newline)?;
+                eat(tokens, Token::Indent)?;
+                AstExpr::BlockExpr(parse_block(tokens, indent + 1)?)
             }
             _ => return Err(ParseErr::ExpectedColon(ix, tok.src_len())),
         };
@@ -432,19 +379,21 @@ where
 fn parse_expr<'src, I>(
     tokens: &mut Peekable<I>,
     precedence: Precedence,
+    indent: usize,
     context: ParseContext,
 ) -> Result<AstExpr<'src>>
 where
     I: Iterator<Item = TokenIter<'src>>,
 {
-    let lhs = parse_primary_expr(tokens, context)?;
-    Ok(parse_expr_with(lhs, tokens, precedence, context)?)
+    let lhs = parse_primary_expr(tokens, indent, context)?;
+    Ok(parse_expr_with(lhs, tokens, precedence, indent, context)?)
 }
 
 fn parse_expr_with<'src, I>(
     parsed_expr: AstExpr<'src>,
     tokens: &mut Peekable<I>,
     precedence: Precedence,
+    indent: usize,
     context: ParseContext,
 ) -> Result<AstExpr<'src>>
 where
@@ -474,7 +423,7 @@ where
 
             tokens.next();
 
-            let rhs = parse_expr(tokens, encountered_precedence, context)?;
+            let rhs = parse_expr(tokens, encountered_precedence, indent, context)?;
             lhs = (lhs, op, rhs).into();
         } else {
             break;
@@ -484,9 +433,7 @@ where
     Ok(lhs)
 }
 
-fn parse_annotation<'src, I>(
-    tokens: &mut Peekable<I>,
-) -> Result<TypeAnnotation<'src>>
+fn parse_annotation<'src, I>(tokens: &mut Peekable<I>) -> Result<TypeAnnotation<'src>>
 where
     I: Iterator<Item = TokenIter<'src>>,
 {
@@ -504,9 +451,5 @@ where
     if tok == expected_type {
         return Ok(());
     }
-    Err(ParseErr::ExpectedToken(
-        ix,
-        tok.src_len(),
-        expected_type.to_string(),
-    ))
+    Err(ParseErr::ExpectedToken(ix, tok.src_len(), expected_type.to_string()))
 }

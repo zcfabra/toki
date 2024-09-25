@@ -1,20 +1,18 @@
-o = if condition:
-    a: int = 100;
-    b: int = 100;
-    a + b;
-;
 
-outline = 90;
 
-hi = 90;
-hi = 90;
 
-def my_fn(x: int, y: bool) -> int:
+def my_fn(x: int, y: bool, z: str) -> int:
     if y:
         a = a + a;
+        a + a + b + x
     else:
         a = a * a;
-    a + a + b + x
+        a + a + b + x
 
-    
+
+
+
+
+
+
 a: mut int = 100;

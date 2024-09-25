@@ -51,10 +51,7 @@ impl std::fmt::Display for AstLiteral<'_> {
                 Self::Int(i) => i,
                 Self::Str(s) => s,
                 Self::Ident(name) => name,
-                Self::TypedIdent {
-                    name,
-                    type_annotation,
-                } => return write!(f, "{}: {}", name, type_annotation),
+                Self::TypedIdent { name, type_annotation } => return write!(f, "{}: {}", name, type_annotation),
             }
         )
     }
@@ -88,7 +85,13 @@ impl<'src> From<AstConditional<'src>> for AstExpr<'src> {
 impl std::fmt::Display for AstConditional<'_> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let else_ = if let Some(expr) = &self.else_block {
-            format!("else:\n{}", expr)
+            let indent = if self.if_block.indent > 0 {
+                self.if_block.indent - 1
+            } else {
+                0
+            };
+            let spaces = std::iter::repeat(" ").take(indent * 4).collect::<String>();
+            format!("{}else:\n{}", spaces, expr)
         } else {
             "".to_string()
         };
@@ -166,26 +169,29 @@ pub enum AstStmt<'src> {
         name: AstLiteral<'src>,
         args: Vec<AstLiteral<'src>>,
         body: AstBlock<'src>,
-        return_type: TypeAnnotation<'src>
+        return_type: TypeAnnotation<'src>,
     },
 }
 
 impl std::fmt::Display for AstStmt<'_> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Self::FnDef { name, args, body, return_type } => {
+            Self::FnDef {
+                name,
+                args,
+                body,
+                return_type,
+            } => {
                 // TODO: Make this efficient
                 let args_str = args
                     .iter()
                     .map(|a| format!("{}", a))
                     .collect::<Vec<String>>()
-                    .join(",");
+                    .join(", ");
 
                 return write!(f, "def {}({}) -> {}:\n{};", name, args_str, return_type, body);
             }
-            Self::Assignment { target, assigned } => {
-                return write!(f, "{} = {};", target, assigned)
-            }
+            Self::Assignment { target, assigned } => return write!(f, "{} = {};", target, assigned),
             Self::Expr { expr, has_semi } => {
                 let mut expr = format!("{}", expr);
                 if *has_semi {
@@ -208,9 +214,7 @@ pub struct AstBlock<'src> {
 impl<'src> std::fmt::Display for AstBlock<'src> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let mut str = String::new();
-        let spaces = std::iter::repeat(" ")
-            .take(self.indent * 4)
-            .collect::<String>();
+        let spaces = std::iter::repeat(" ").take(self.indent * 4).collect::<String>();
         for stmt in &self.stmts {
             str.push_str(format!("{}{}\n", spaces, stmt).as_str());
         }

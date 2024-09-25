@@ -5,7 +5,8 @@ pub type SpannedToken<'src> = (usize, Token<'src>);
 #[derive(Debug, PartialEq)]
 pub enum Token<'src> {
     // Have to give special treatment to sequences of spaces b/c
-    Spaces(usize),
+    Indent,
+    Dedent,
 
     IntLiteral(i32),
     FloatLiteral(f32),
@@ -69,15 +70,8 @@ impl std::fmt::Display for Token<'_> {
                 Self::FloatLiteral(fl) => return write!(f, "{}", fl),
                 Self::StrLiteral(s) => return write!(f, "{}", s),
                 Self::Ident(id) => return write!(f, "{}", id),
-                Self::Spaces(n) =>
-                    return write!(
-                        f,
-                        "{}",
-                        std::iter::repeat(" ")
-                            .take(*n)
-                            .collect::<String>()
-                            .as_str()
-                    ),
+                Self::Indent => return write!(f, "INDENT",),
+                Self::Dedent => return write!(f, "DEDENT",),
 
                 Self::LParen => "(",
                 Self::RParen => ")",

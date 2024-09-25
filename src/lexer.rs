@@ -5,7 +5,10 @@ pub struct Lexer<'src> {
     rest: &'src str,
 
     byte: usize,
+
     just_after_newline: bool,
+
+    indent_level: usize,
 }
 
 type SourcePostion = usize;
@@ -56,6 +59,7 @@ impl<'src> Lexer<'src> {
             rest: src,
             byte: 0,
             just_after_newline: false,
+            indent_level: 0,
         }
     }
 }
@@ -64,142 +68,159 @@ impl<'src> Iterator for Lexer<'src> {
     type Item = Result<SpannedToken<'src>>;
 
     fn next(&mut self) -> Option<Self::Item> {
-        let mut c_at = self.byte;
-        let mut chars = self.rest.chars();
-        let mut c = chars.next()?;
+        loop {
+            let mut c_at = self.byte;
+            let mut chars = self.rest.chars();
+            let mut c = chars.next()?;
 
-        if self.just_after_newline && c != ' ' {
-            self.just_after_newline = false;
-            return Some(Ok((c_at, Token::Spaces(0))));
-        }
+            let needs_dedent = self.indent_level > 0 && self.just_after_newline && c != ' ' && c != '\n';
+            if needs_dedent {
+                self.indent_level -= 1;
+                return Some(Ok((c_at, Token::Dedent)));
+            }
 
-        while c == ' ' && !self.just_after_newline {
+            while c == ' ' && !self.just_after_newline {
+                self.byte += c.len_utf8();
+                c_at = self.byte;
+                self.rest = &self.rest[c.len_utf8()..];
+                c = chars.next()?;
+            }
+
+            let c_rest = self.rest;
+
             self.byte += c.len_utf8();
-            c_at = self.byte;
-            self.rest = &self.rest[c.len_utf8()..];
-            c = chars.next()?;
-        }
+            self.rest = chars.as_str();
 
-        let c_rest = self.rest;
-
-        self.byte += c.len_utf8();
-        self.rest = chars.as_str();
-
-        if c == '\n' {
-            self.just_after_newline = true;
-            return Some(Ok((c_at, Token::Newline)));
-        } else {
-            self.just_after_newline = false;
-        }
-
-        let started = match c {
-            '(' => return Some(Ok((c_at, Token::LParen))),
-            ')' => return Some(Ok((c_at, Token::RParen))),
-            ':' => return Some(Ok((c_at, Token::Colon))),
-            ';' => return Some(Ok((c_at, Token::Semicolon))),
-            ',' => return Some(Ok((c_at, Token::Comma))),
-
-            '-' => Started::Minus,
-            '+' => Started::IfEqualElse(Token::Add, Token::AddEq),
-            '*' => Started::IfEqualElse(Token::Mul, Token::MulEq),
-            '/' => Started::IfEqualElse(Token::Div, Token::DivEq),
-            '!' => Started::IfEqualElse(Token::Bang, Token::BangEq),
-            '=' => Started::IfEqualElse(Token::Eq, Token::DoubleEq),
-
-            ' ' => Started::Spaces,
-            '"' => Started::String,
-            '0'..='9' => Started::Numeric,
-            a if a.is_alphabetic() => Started::Ident,
-
-            _ => return Some(Err(LexErr::UnknownToken(c_at, None))),
-        };
-
-        Some(Ok(match started {
-            Started::Spaces => {
-                let space_end_ix =
-                    c_rest.find(|c| c != ' ').unwrap_or_else(|| c_rest.len());
-                let spaces = &c_rest[..space_end_ix];
-
-                let n_bytes = spaces.len() - c.len_utf8();
-
-                self.byte += n_bytes;
-                self.rest = &self.rest[n_bytes..];
-
-                (c_at, Token::Spaces(spaces.len()))
+            if c == '\n' {
+                self.just_after_newline = true;
+                return Some(Ok((c_at, Token::Newline)));
+            } else {
+                self.just_after_newline = false;
             }
-            Started::Numeric => {
-                let numeric_end_ix = c_rest
-                    .find(|c: char| !(c.is_numeric() || c == '_'))
-                    .unwrap_or_else(|| c_rest.len());
 
-                let numeric_token = &c_rest[..numeric_end_ix];
+            let started = match c {
+                '(' => return Some(Ok((c_at, Token::LParen))),
+                ')' => return Some(Ok((c_at, Token::RParen))),
+                ':' => return Some(Ok((c_at, Token::Colon))),
+                ';' => return Some(Ok((c_at, Token::Semicolon))),
+                ',' => return Some(Ok((c_at, Token::Comma))),
 
-                let n_bytes = numeric_token.len() - c.len_utf8();
-                self.byte += n_bytes;
-                self.rest = &self.rest[n_bytes..];
+                '-' => Started::Minus,
+                '+' => Started::IfEqualElse(Token::Add, Token::AddEq),
+                '*' => Started::IfEqualElse(Token::Mul, Token::MulEq),
+                '/' => Started::IfEqualElse(Token::Div, Token::DivEq),
+                '!' => Started::IfEqualElse(Token::Bang, Token::BangEq),
+                '=' => Started::IfEqualElse(Token::Eq, Token::DoubleEq),
 
-                let n: i32 =
-                    numeric_token.parse().expect("Should have checked");
-                (c_at, Token::IntLiteral(n))
-            }
-            Started::Ident => {
-                let ident_ed_ix = c_rest
-                    .find(|c: char| !(c == '_' || c.is_alphanumeric()))
-                    .unwrap_or_else(|| c_rest.len());
+                ' ' => Started::Spaces,
+                '"' => Started::String,
+                '0'..='9' => Started::Numeric,
+                a if a.is_alphabetic() => Started::Ident,
 
-                let ident = &c_rest[..ident_ed_ix];
+                _ => return Some(Err(LexErr::UnknownToken(c_at, None))),
+            };
 
-                let n_bytes = ident.len() - c.len_utf8();
-                self.byte += n_bytes;
-                self.rest = &self.rest[n_bytes..];
+            return Some(Ok(match started {
+                Started::Spaces => {
+                    let space_end_ix = c_rest.find(|c| c != ' ').unwrap_or_else(|| c_rest.len());
+                    let spaces = &c_rest[..space_end_ix];
 
-                (
-                    c_at,
-                    get_keyword(ident).unwrap_or_else(|| Token::Ident(ident)),
-                )
-            }
-            Started::String => {
-                if let Some(str_end_ix) = c_rest[1..].find(|c| c == '"') {
-                    let full_str = &c_rest[..=str_end_ix + 1];
-                    let n_bytes = full_str.len() - c.len_utf8();
+                    // TODO: Add LexErr
+                    assert!(spaces.len() % 4 == 0, "Required indent size is 4 spaces");
 
+                    let indent = spaces.len() / 4;
+
+                    if indent == self.indent_level {
+                        continue;
+                    }
+
+                    let tok = if indent < self.indent_level {
+                        let n_bytes = 4 - c.len_utf8();
+
+                        self.byte += n_bytes;
+                        self.rest = &self.rest[n_bytes..];
+                        self.indent_level -= 1;
+                        (c_at, Token::Dedent)
+                    } else {
+                        println!("{}", indent - self.indent_level);
+                        assert!(indent - self.indent_level == 1, "Unexpected Indent");
+
+                        let n_bytes = 4 - c.len_utf8();
+
+                        self.byte += n_bytes;
+                        self.rest = &self.rest[n_bytes..];
+                        self.indent_level += 1;
+                        (c_at, Token::Indent)
+                    };
+                    tok
+                }
+                Started::Numeric => {
+                    let numeric_end_ix = c_rest
+                        .find(|c: char| !(c.is_numeric() || c == '_'))
+                        .unwrap_or_else(|| c_rest.len());
+
+                    let numeric_token = &c_rest[..numeric_end_ix];
+
+                    let n_bytes = numeric_token.len() - c.len_utf8();
                     self.byte += n_bytes;
                     self.rest = &self.rest[n_bytes..];
 
-                    (
-                        c_at,
-                        Token::StrLiteral(&full_str[1..&full_str.len() - 1]),
-                    )
-                } else {
-                    return Some(Err(LexErr::UnterminatedString(c_at)));
+                    let n: i32 = numeric_token.parse().expect("Should have checked");
+                    (c_at, Token::IntLiteral(n))
                 }
-            }
-            Started::IfEqualElse(no, yes) => {
-                let tok = if self.rest.starts_with('=') {
-                    self.byte += '='.len_utf8();
-                    self.rest = &self.rest[1..];
-                    yes
-                } else {
-                    no
-                };
-                (c_at, tok)
-            }
-            Started::Minus => {
-                let tok = if self.rest.starts_with('=') {
-                    self.byte += '='.len_utf8();
-                    self.rest = &self.rest[1..];
-                    Token::SubEq
-                } else if self.rest.starts_with('>') {
-                    self.byte += '='.len_utf8();
-                    self.rest = &self.rest[1..];
-                    Token::Arrow
-                } else {
-                    Token::Sub
-                };
-                (c_at, tok)
-            }
-            _ => todo!(),
-        }))
+                Started::Ident => {
+                    let ident_ed_ix = c_rest
+                        .find(|c: char| !(c == '_' || c.is_alphanumeric()))
+                        .unwrap_or_else(|| c_rest.len());
+
+                    let ident = &c_rest[..ident_ed_ix];
+
+                    let n_bytes = ident.len() - c.len_utf8();
+                    self.byte += n_bytes;
+                    self.rest = &self.rest[n_bytes..];
+
+                    (c_at, get_keyword(ident).unwrap_or_else(|| Token::Ident(ident)))
+                }
+                Started::String => {
+                    if let Some(str_end_ix) = c_rest[1..].find(|c| c == '"') {
+                        let full_str = &c_rest[..=str_end_ix + 1];
+                        let n_bytes = full_str.len() - c.len_utf8();
+
+                        self.byte += n_bytes;
+                        self.rest = &self.rest[n_bytes..];
+
+                        (c_at, Token::StrLiteral(&full_str[1..&full_str.len() - 1]))
+                    } else {
+                        return Some(Err(LexErr::UnterminatedString(c_at)));
+                    }
+                }
+                Started::IfEqualElse(no, yes) => {
+                    let tok = if self.rest.starts_with('=') {
+                        self.byte += '='.len_utf8();
+                        self.rest = &self.rest[1..];
+                        yes
+                    } else {
+                        no
+                    };
+                    (c_at, tok)
+                }
+                Started::Minus => {
+                    let tok = if self.rest.starts_with('=') {
+                        self.byte += '='.len_utf8();
+                        self.rest = &self.rest[1..];
+                        Token::SubEq
+                    } else if self.rest.starts_with('>') {
+                        self.byte += '='.len_utf8();
+                        self.rest = &self.rest[1..];
+                        Token::Arrow
+                    } else {
+                        Token::Sub
+                    };
+                    (c_at, tok)
+                }
+                _ => todo!(),
+            }));
+        }
     }
 }
 
