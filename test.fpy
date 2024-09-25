@@ -2,9 +2,11 @@
 
 
 def my_fn(x: int, y: bool, z: str) -> int:
+    def ident(x: int) -> int:
+        return x;
     if y:
-        a = a + a;
-        a + a + b + x
+        a = ident(a) + ident(a);
+        ident(a * (a + b) * x)
     else:
         a = a * a;
         a + a + b + x

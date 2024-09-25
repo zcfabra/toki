@@ -1,4 +1,6 @@
-use crate::ast::{AstBinExpr, AstBlock, AstConditional, AstExpr, AstLiteral, AstNode, AstStmt, TypeAnnotation};
+use crate::ast::{
+    AstBinExpr, AstBlock, AstCallExpr, AstConditional, AstExpr, AstLiteral, AstNode, AstStmt, TypeAnnotation,
+};
 use crate::lexer::{LexErr, Result as LexResult};
 use crate::token::{SpannedToken, Token};
 use core::iter::Peekable;
@@ -48,7 +50,7 @@ impl ParseContext {
         self
     }
     fn exiting_parens(mut self: Self) -> Self {
-        self.is_in_paren_block = true;
+        self.is_in_paren_block = false;
         self
     }
     fn with_annotation_parsing(mut self: Self) -> Self {
@@ -272,8 +274,6 @@ where
 
 pub fn expr_has_semi(expr: &AstExpr<'_>, has_semi_next: bool) -> bool {
     match expr {
-        AstExpr::BinExpr(_) => has_semi_next,
-        AstExpr::LitExpr(_) => has_semi_next,
         AstExpr::BlockExpr(AstBlock { has_semi, .. }) => *has_semi,
         AstExpr::ConditionalExpr(AstConditional {
             if_block, else_block, ..
@@ -284,6 +284,7 @@ pub fn expr_has_semi(expr: &AstExpr<'_>, has_semi_next: bool) -> bool {
                 if_block.has_semi
             }
         }
+        _ => has_semi_next,
     }
 }
 
@@ -396,7 +397,7 @@ fn parse_expr_with<'src, I>(
 where
     I: Iterator<Item = TokenIter<'src>>,
 {
-    let mut lhs = parsed_expr;
+    let mut lhs = parse_postfix_expr(parsed_expr, tokens)?;
 
     loop {
         if let Some(Ok((_, tok))) = tokens.peek() {
@@ -404,7 +405,9 @@ where
                 break;
             }
             if matches!(tok, Token::RParen) {
-                tokens.next();
+                if !context.is_in_paren_block {
+                    tokens.next();
+                }
                 break;
             }
 
@@ -421,13 +424,43 @@ where
             tokens.next();
 
             let rhs = parse_expr(tokens, encountered_precedence, indent, context)?;
-            lhs = (lhs, op, rhs).into();
+            lhs = parse_postfix_expr((lhs, op, rhs).into(), tokens)?;
         } else {
             break;
         }
     }
 
+    Ok(parse_postfix_expr(lhs, tokens)?)
+}
+
+fn parse_postfix_expr<'src, I>(lhs: AstExpr<'src>, tokens: &mut Peekable<I>) -> Result<AstExpr<'src>>
+where
+    I: Iterator<Item = TokenIter<'src>>,
+{
+    if matches!(tokens.peek(), Some(Ok((_, Token::LParen)))) {
+        tokens.next();
+        return parse_call_expr(lhs, tokens);
+    }
     Ok(lhs)
+}
+fn parse_call_expr<'src, I>(fn_expr: AstExpr<'src>, tokens: &mut Peekable<I>) -> Result<AstExpr<'src>>
+where
+    I: Iterator<Item = TokenIter<'src>>,
+{
+    let mut call_exprs = Vec::new();
+
+    while !matches!(tokens.peek(), Some(Ok((_, Token::RParen)))) {
+        let expr = parse_expr(tokens, Precedence::Lowest, 0, ParseContext::new().entering_parens())?;
+        call_exprs.push(expr);
+    }
+    eat(tokens, Token::RParen)?;
+
+    let expr = AstCallExpr {
+        called_expr: Box::new(fn_expr),
+        args: call_exprs,
+    };
+
+    Ok(expr.into())
 }
 
 fn parse_annotation<'src, I>(tokens: &mut Peekable<I>) -> Result<TypeAnnotation<'src>>

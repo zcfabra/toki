@@ -101,13 +101,33 @@ impl std::fmt::Display for AstConditional<'_> {
 }
 
 #[derive(Debug, PartialEq)]
+pub struct AstCallExpr<'src> {
+    pub called_expr: Box<AstExpr<'src>>,
+    pub args: Vec<AstExpr<'src>>,
+}
+
+impl std::fmt::Display for AstCallExpr<'_> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let args = self.args.iter().map(|a| a.to_string()).collect::<Vec<_>>().join(",");
+        write!(f, "{}({})", self.called_expr, args)
+    }
+}
+
+#[derive(Debug, PartialEq)]
 pub enum AstExpr<'src> {
     BinExpr(AstBinExpr<'src>),
     LitExpr(AstLiteral<'src>),
     ConditionalExpr(AstConditional<'src>),
     BlockExpr(AstBlock<'src>),
+
+    CallExpr(AstCallExpr<'src>),
 }
 
+impl<'src> From<AstCallExpr<'src>> for AstExpr<'src> {
+    fn from(value: AstCallExpr<'src>) -> Self {
+        return AstExpr::CallExpr(value);
+    }
+}
 impl<'src> From<(AstExpr<'src>, Operator, AstExpr<'src>)> for AstExpr<'src> {
     fn from(value: (AstExpr<'src>, Operator, AstExpr<'src>)) -> Self {
         let (l, op, r) = value;
@@ -127,6 +147,7 @@ impl std::fmt::Display for AstExpr<'_> {
             Self::BinExpr(bin) => write!(f, "{}", bin),
             Self::LitExpr(lit) => write!(f, "{}", lit),
             Self::BlockExpr(block) => write!(f, "{}", block),
+            Self::CallExpr(fn_) => write!(f, "{}", fn_),
         }
     }
 }
