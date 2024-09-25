@@ -142,7 +142,6 @@ impl<'src> Iterator for Lexer<'src> {
                         self.indent_level -= 1;
                         (c_at, Token::Dedent)
                     } else {
-                        println!("{}", indent - self.indent_level);
                         assert!(indent - self.indent_level == 1, "Unexpected Indent");
 
                         let n_bytes = 4 - c.len_utf8();
