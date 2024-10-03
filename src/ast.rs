@@ -59,9 +59,27 @@ impl std::fmt::Display for AstLiteral<'_> {
 
 #[derive(Debug, PartialEq)]
 pub struct AstBinExpr<'src> {
-    op: Operator,
-    l: Box<AstExpr<'src>>,
-    r: Box<AstExpr<'src>>,
+    pub op: Operator,
+    pub l: Box<AstExpr<'src>>,
+    pub r: Box<AstExpr<'src>>,
+}
+
+// For tests
+impl<'src> From<(Token<'src>, Operator, Token<'src>)> for AstBinExpr<'src> {
+    fn from(value: (Token<'src>, Operator, Token<'src>)) -> Self {
+        let (l, op, r) = value;
+        let l_lit = AstLiteral::Ident(l);
+        let r_lit = AstLiteral::Ident(r);
+
+        let l_expr = AstExpr::LitExpr(l_lit);
+        let r_expr = AstExpr::LitExpr(r_lit);
+
+        return AstBinExpr {
+            op,
+            l: Box::new(l_expr),
+            r: Box::new(r_expr),
+        };
+    }
 }
 
 impl std::fmt::Display for AstBinExpr<'_> {
@@ -101,9 +119,24 @@ impl std::fmt::Display for AstConditional<'_> {
 }
 
 #[derive(Debug, PartialEq)]
+pub struct CallArg<'src> {
+    pub name: Option<AstExpr<'src>>,
+    pub expr: AstExpr<'src>,
+}
+
+impl std::fmt::Display for CallArg<'_> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match &self.name {
+            Some(name) => write!(f, "{}={}", name, self.expr),
+            None => write!(f, "{}", self.expr),
+        }
+    }
+}
+
+#[derive(Debug, PartialEq)]
 pub struct AstCallExpr<'src> {
     pub called_expr: Box<AstExpr<'src>>,
-    pub args: Vec<AstExpr<'src>>,
+    pub args: Vec<CallArg<'src>>,
 }
 
 impl std::fmt::Display for AstCallExpr<'_> {
@@ -192,11 +225,23 @@ pub enum AstStmt<'src> {
         body: AstBlock<'src>,
         return_type: TypeAnnotation<'src>,
     },
+    StructDef {
+        name: AstLiteral<'src>,
+        fields: Vec<AstLiteral<'src>>,
+    },
 }
 
 impl std::fmt::Display for AstStmt<'_> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
+            Self::StructDef { name, fields } => {
+                let fields = fields
+                    .iter()
+                    .map(|a| format!("    {}", a.to_string()))
+                    .collect::<Vec<_>>()
+                    .join("\n");
+                write!(f, "struct {}:\n{}", name, fields)
+            }
             Self::FnDef {
                 name,
                 args,

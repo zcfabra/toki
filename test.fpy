@@ -4,17 +4,20 @@
 def my_fn(x: int, y: bool, z: str) -> int:
     def ident(x: int) -> int:
         return x;
+
+    def add(a: int, b: int) -> int:
+        a + b
+
     if y:
         a = ident(a) + ident(a);
         ident(a * (a + b) * x)
     else:
         a = a * a;
-        a + a + b + x
+        return a + a + b + x;
 
+struct Person:
+    age: int
+    name: str
 
-
-
-
-
-
+p = Person(age=10, name="Dave");
 a: mut int = 100;

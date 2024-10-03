@@ -1,8 +1,8 @@
 use crate::ast::{
-    AstBinExpr, AstBlock, AstCallExpr, AstConditional, AstExpr, AstLiteral, AstNode, AstStmt, TypeAnnotation,
+    AstBinExpr, AstBlock, AstCallExpr, AstConditional, AstExpr, AstLiteral, AstNode, AstStmt, CallArg, TypeAnnotation,
 };
 use crate::lexer::{LexErr, Result as LexResult};
-use crate::token::{SpannedToken, Token};
+use crate::token::{Operator, SpannedToken, Token};
 use core::iter::Peekable;
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
@@ -96,7 +96,9 @@ where
 
     loop {
         match tokens.peek() {
-            None => break,
+            None => {
+                break;
+            }
             Some(Ok((_, Token::Newline))) => {
                 tokens.next();
             }
@@ -121,6 +123,7 @@ where
 
                 stmts.push(stmt);
             }
+
             Some(Err(_)) => todo!(),
         };
     }
@@ -156,6 +159,10 @@ where
 
     if matches!(tokens.peek(), Some(Ok((_, Token::Def)))) {
         return Ok(parse_fn_def(tokens, indent)?);
+    }
+
+    if matches!(tokens.peek(), Some(Ok((_, Token::Struct)))) {
+        return Ok(parse_struct_def(tokens, indent)?);
     }
 
     let primary_expr = parse_primary_expr(tokens, indent, context)?;
@@ -209,11 +216,51 @@ where
     Ok(args)
 }
 
+pub fn parse_struct_def<'src, I>(tokens: &mut Peekable<I>, indent: usize) -> Result<AstStmt<'src>>
+where
+    I: Iterator<Item = TokenIter<'src>>,
+{
+    eat(tokens, Token::Struct)?;
+
+    let (ix, struct_name) = get_next_token(tokens)?;
+    if !matches!(struct_name, Token::Ident(_)) {
+        return Err(ParseErr::ExpectedFnName(ix, struct_name.src_len()));
+    }
+    let name = AstLiteral::Ident(struct_name);
+
+    eat(tokens, Token::Colon)?;
+    eat(tokens, Token::Newline)?;
+    eat(tokens, Token::Indent)?;
+
+    let fields = parse_struct_fields(tokens)?;
+
+    while matches!(tokens.peek(), Some(Ok((_, Token::Newline)))) {
+        // Skip any newlines after the struct
+        tokens.next();
+    }
+    eat(tokens, Token::Dedent)?;
+
+    Ok(AstStmt::StructDef { name, fields })
+}
+pub fn parse_struct_fields<'src, I>(tokens: &mut Peekable<I>) -> Result<Vec<AstLiteral<'src>>>
+where
+    I: Iterator<Item = TokenIter<'src>>,
+{
+    let mut fields = Vec::new();
+    while matches!(tokens.peek(), Some(Ok((_, Token::Ident(_))))) {
+        let (_, name) = get_next_token(tokens)?;
+        let type_annotation = parse_annotation(tokens)?;
+        fields.push(AstLiteral::TypedIdent { name, type_annotation });
+        eat(tokens, Token::Newline)?;
+    }
+    Ok(fields)
+}
+
 pub fn parse_fn_def<'src, I>(tokens: &mut Peekable<I>, indent: usize) -> Result<AstStmt<'src>>
 where
     I: Iterator<Item = TokenIter<'src>>,
 {
-    tokens.next();
+    eat(tokens, Token::Def)?;
     let (ix, fn_name) = get_next_token(tokens)?;
 
     if !matches!(fn_name, Token::Ident(_)) {
@@ -328,12 +375,10 @@ fn parse_conditional<'src, I>(tokens: &mut Peekable<I>, indent: usize) -> Result
 where
     I: Iterator<Item = TokenIter<'src>>,
 {
-    let condition = Box::new(parse_expr(
-        tokens,
-        Precedence::Lowest,
-        indent,
-        ParseContext::new().without_annotation_parsing(),
-    )?);
+    let ctx = ParseContext::new().without_annotation_parsing();
+
+    let cond_expr = parse_expr(tokens, Precedence::Lowest, indent, ctx)?;
+    let condition = Box::new(cond_expr);
 
     let (ix, tok) = get_next_token(tokens)?;
 
@@ -439,28 +484,42 @@ where
 {
     if matches!(tokens.peek(), Some(Ok((_, Token::LParen)))) {
         tokens.next();
-        return parse_call_expr(lhs, tokens);
+        return parse_call_expr(lhs, tokens).map(|r| r.into());
     }
     Ok(lhs)
 }
-fn parse_call_expr<'src, I>(fn_expr: AstExpr<'src>, tokens: &mut Peekable<I>) -> Result<AstExpr<'src>>
+fn parse_call_expr<'src, I>(fn_expr: AstExpr<'src>, tokens: &mut Peekable<I>) -> Result<AstCallExpr<'src>>
 where
     I: Iterator<Item = TokenIter<'src>>,
 {
-    let mut call_exprs = Vec::new();
+    let mut call_args = Vec::new();
 
     while !matches!(tokens.peek(), Some(Ok((_, Token::RParen)))) {
-        let expr = parse_expr(tokens, Precedence::Lowest, 0, ParseContext::new().entering_parens())?;
-        call_exprs.push(expr);
+        let ctx = ParseContext::new().entering_parens();
+        let mut expr = parse_expr(tokens, Precedence::Lowest, 0, ctx)?;
+        let mut name = None;
+
+        let is_named_arg = matches!(expr, AstExpr::LitExpr(_)) && matches!(tokens.peek(), Some(Ok((_, Token::Eq))));
+        if is_named_arg {
+            eat(tokens, Token::Eq)?;
+            name = Some(expr);
+            expr = parse_expr(tokens, Precedence::Lowest, 0, ctx)?;
+        }
+
+        call_args.push(CallArg { expr, name });
+
+        if matches!(tokens.peek(), Some(Ok((_, Token::Comma)))) {
+            tokens.next();
+        }
     }
     eat(tokens, Token::RParen)?;
 
     let expr = AstCallExpr {
         called_expr: Box::new(fn_expr),
-        args: call_exprs,
+        args: call_args,
     };
 
-    Ok(expr.into())
+    Ok(expr)
 }
 
 fn parse_annotation<'src, I>(tokens: &mut Peekable<I>) -> Result<TypeAnnotation<'src>>
@@ -482,4 +541,45 @@ where
         return Ok(());
     }
     Err(ParseErr::ExpectedToken(ix, tok.src_len(), expected_type.to_string()))
+}
+
+#[test]
+fn test_parse_add() {
+    let mut toks = vec![Token::Ident("a"), Token::Add, Token::Ident("b")]
+        .into_iter()
+        .enumerate()
+        .map(|t| Ok(t))
+        .peekable();
+
+    let expected: AstBinExpr = (Token::Ident("a"), Operator::Add, Token::Ident("b")).into();
+    assert_eq!(
+        parse_expr(&mut toks, Precedence::Lowest, 0, ParseContext::new()),
+        Ok(AstExpr::BinExpr(expected))
+    );
+}
+
+#[test]
+fn test_parse_add_multi() {
+    let mut toks = vec![
+        Token::Ident("a"),
+        Token::Add,
+        Token::Ident("b"),
+        Token::Add,
+        Token::Ident("c"),
+    ]
+    .into_iter()
+    .enumerate()
+    .map(|t| Ok(t))
+    .peekable();
+
+    let r = AstExpr::BinExpr((Token::Ident("b"), Operator::Add, Token::Ident("c")).into());
+    let expected = AstBinExpr {
+        l: Box::new(AstExpr::LitExpr(AstLiteral::Ident(Token::Ident("a")))),
+        op: Operator::Add,
+        r: Box::new(r),
+    };
+    assert_eq!(
+        parse_expr(&mut toks, Precedence::Lowest, 0, ParseContext::new()),
+        Ok(AstExpr::BinExpr(expected))
+    );
 }

@@ -233,6 +233,7 @@ fn get_keyword<'src>(ident: &'src str) -> Option<Token<'src>> {
         "if" => Token::If,
         "else" => Token::Else,
         "def" => Token::Def,
+        "struct" => Token::Struct,
         _ => return None,
     })
 }
