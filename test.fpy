@@ -15,9 +15,36 @@ def my_fn(x: int, y: bool, z: str) -> int:
         a = a * a;
         return a + a + b + x;
 
+struct Name:
+    first: str
+    last: str
+
 struct Person:
     age: int
     name: str
 
-p = Person(age=10, name="Dave");
+    def new(age: int, name: str) -> Self:
+        return Person(
+            age=age,
+            name=name,
+        );
+
+    def thing() -> int:
+        10 * 10
+
+
+
+p: mut Person = Person(age=10, name=Name(first="Dave", last="Lee"));
 a: mut int = 100;
+
+p.name.last = a;
+
+def get_person(name_first: str, name_last: str, age: int) -> Person:
+    Person(
+        name=Name(first=name_first, last=name_last),
+        age=age,
+    )
+
+
+name: str = get_person("Hi", "There", 20).name.first;
+

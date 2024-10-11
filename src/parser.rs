@@ -1,5 +1,6 @@
 use crate::ast::{
-    AstBinExpr, AstBlock, AstCallExpr, AstConditional, AstExpr, AstLiteral, AstNode, AstStmt, CallArg, TypeAnnotation,
+    AstBinExpr, AstBlock, AstCallExpr, AstConditional, AstExpr, AstLiteral, AstNode, AstStmt, AttrAccess, CallArg,
+    FnDef, TypeAnnotation,
 };
 use crate::lexer::{LexErr, Result as LexResult};
 use crate::token::{Operator, SpannedToken, Token};
@@ -158,7 +159,7 @@ where
     }
 
     if matches!(tokens.peek(), Some(Ok((_, Token::Def)))) {
-        return Ok(parse_fn_def(tokens, indent)?);
+        return parse_fn_def(tokens, indent).map(|r| AstStmt::FnDef(r));
     }
 
     if matches!(tokens.peek(), Some(Ok((_, Token::Struct)))) {
@@ -233,14 +234,24 @@ where
     eat(tokens, Token::Indent)?;
 
     let fields = parse_struct_fields(tokens)?;
+    skip_newlines(tokens);
 
+    let methods = parse_struct_methods(tokens)?;
+
+    skip_newlines(tokens);
+    eat(tokens, Token::Dedent)?;
+
+    Ok(AstStmt::StructDef { name, fields, methods })
+}
+
+pub fn skip_newlines<'src, I>(tokens: &mut Peekable<I>)
+where
+    I: Iterator<Item = TokenIter<'src>>,
+{
     while matches!(tokens.peek(), Some(Ok((_, Token::Newline)))) {
         // Skip any newlines after the struct
         tokens.next();
     }
-    eat(tokens, Token::Dedent)?;
-
-    Ok(AstStmt::StructDef { name, fields })
 }
 pub fn parse_struct_fields<'src, I>(tokens: &mut Peekable<I>) -> Result<Vec<AstLiteral<'src>>>
 where
@@ -256,7 +267,18 @@ where
     Ok(fields)
 }
 
-pub fn parse_fn_def<'src, I>(tokens: &mut Peekable<I>, indent: usize) -> Result<AstStmt<'src>>
+pub fn parse_struct_methods<'src, I>(tokens: &mut Peekable<I>) -> Result<Vec<FnDef<'src>>>
+where
+    I: Iterator<Item = TokenIter<'src>>,
+{
+    let mut methods = Vec::new();
+    while matches!(tokens.peek(), Some(Ok((_, Token::Def)))) {
+        methods.push(parse_fn_def(tokens, 0)?);
+    }
+    Ok(methods)
+}
+
+pub fn parse_fn_def<'src, I>(tokens: &mut Peekable<I>, indent: usize) -> Result<FnDef<'src>>
 where
     I: Iterator<Item = TokenIter<'src>>,
 {
@@ -281,7 +303,7 @@ where
 
     let body = parse_block(tokens, indent + 1)?;
 
-    return Ok(AstStmt::FnDef {
+    return Ok(FnDef {
         name,
         args,
         body,
@@ -368,7 +390,7 @@ where
         }
     };
 
-    Ok(expr.into())
+    Ok(parse_postfix_expr(expr.into(), tokens)?)
 }
 
 fn parse_conditional<'src, I>(tokens: &mut Peekable<I>, indent: usize) -> Result<AstConditional<'src>>
@@ -482,19 +504,56 @@ fn parse_postfix_expr<'src, I>(lhs: AstExpr<'src>, tokens: &mut Peekable<I>) -> 
 where
     I: Iterator<Item = TokenIter<'src>>,
 {
-    if matches!(tokens.peek(), Some(Ok((_, Token::LParen)))) {
-        tokens.next();
-        return parse_call_expr(lhs, tokens).map(|r| r.into());
+    let mut lhs = lhs;
+    loop {
+        match tokens.peek() {
+            Some(Ok((_, Token::LParen))) => {
+                lhs = parse_call_expr(lhs, tokens)?.into();
+            }
+            Some(Ok((_, Token::Dot))) => {
+                lhs = parse_attr_access(lhs, tokens)?.into();
+            }
+            _ => break,
+        }
     }
+
     Ok(lhs)
 }
+
+fn parse_attr_access<'src, I>(lhs: AstExpr<'src>, tokens: &mut Peekable<I>) -> Result<AttrAccess<'src>>
+where
+    I: Iterator<Item = TokenIter<'src>>,
+{
+    eat(tokens, Token::Dot)?;
+    let (_, attr_tok) = get_next_token(tokens)?;
+    assert!(matches!(attr_tok, Token::Ident(_)), "Expected Literal After Dot");
+
+    let attribute = AstLiteral::Ident(attr_tok);
+    Ok(AttrAccess {
+        attribute,
+        expr: Box::new(lhs),
+    })
+}
+
 fn parse_call_expr<'src, I>(fn_expr: AstExpr<'src>, tokens: &mut Peekable<I>) -> Result<AstCallExpr<'src>>
 where
     I: Iterator<Item = TokenIter<'src>>,
 {
-    let mut call_args = Vec::new();
+    eat(tokens, Token::LParen)?;
 
-    while !matches!(tokens.peek(), Some(Ok((_, Token::RParen)))) {
+    let mut call_args = Vec::new();
+    let mut is_vertical = false;
+
+    if matches!(tokens.peek(), Some(Ok((_, Token::Newline)))) {
+        is_vertical = true;
+        tokens.next();
+    }
+
+    if is_vertical {
+        eat(tokens, Token::Indent)?;
+    }
+
+    while !matches!(tokens.peek(), Some(Ok((_, Token::RParen | Token::Dedent)))) {
         let ctx = ParseContext::new().entering_parens();
         let mut expr = parse_expr(tokens, Precedence::Lowest, 0, ctx)?;
         let mut name = None;
@@ -508,9 +567,19 @@ where
 
         call_args.push(CallArg { expr, name });
 
-        if matches!(tokens.peek(), Some(Ok((_, Token::Comma)))) {
-            tokens.next();
+        if !matches!(tokens.peek(), Some(Ok((_, Token::Comma)))) {
+            break;
         }
+
+        eat(tokens, Token::Comma)?;
+
+        if is_vertical {
+            eat(tokens, Token::Newline)?;
+        }
+    }
+
+    if is_vertical {
+        eat(tokens, Token::Dedent)?;
     }
     eat(tokens, Token::RParen)?;
 

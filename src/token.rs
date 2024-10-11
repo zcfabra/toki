@@ -52,6 +52,7 @@ pub enum Token<'src> {
     Def,
     Struct,
     // Enum,
+    Dot,
 }
 
 impl Token<'_> {
@@ -110,6 +111,8 @@ impl std::fmt::Display for Token<'_> {
                 Self::Return => "return",
                 Self::Def => "def",
                 Self::Struct => "struct",
+
+                Self::Dot => ".",
             }
         )
     }

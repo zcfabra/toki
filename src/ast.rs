@@ -141,7 +141,7 @@ pub struct AstCallExpr<'src> {
 
 impl std::fmt::Display for AstCallExpr<'_> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let args = self.args.iter().map(|a| a.to_string()).collect::<Vec<_>>().join(",");
+        let args = self.args.iter().map(|a| a.to_string()).collect::<Vec<_>>().join(", ");
         write!(f, "{}({})", self.called_expr, args)
     }
 }
@@ -154,6 +154,8 @@ pub enum AstExpr<'src> {
     BlockExpr(AstBlock<'src>),
 
     CallExpr(AstCallExpr<'src>),
+
+    AttrAccessExpr(AttrAccess<'src>),
 }
 
 impl<'src> From<AstCallExpr<'src>> for AstExpr<'src> {
@@ -181,6 +183,7 @@ impl std::fmt::Display for AstExpr<'_> {
             Self::LitExpr(lit) => write!(f, "{}", lit),
             Self::BlockExpr(block) => write!(f, "{}", block),
             Self::CallExpr(fn_) => write!(f, "{}", fn_),
+            Self::AttrAccessExpr(aa) => write!(f, "{}", aa),
         }
     }
 }
@@ -209,6 +212,14 @@ impl<'src> From<AstExpr<'src>> for AstNode<'src> {
 }
 
 #[derive(Debug, PartialEq)]
+pub struct FnDef<'src> {
+    pub name: AstLiteral<'src>,
+    pub args: Vec<AstLiteral<'src>>,
+    pub body: AstBlock<'src>,
+    pub return_type: TypeAnnotation<'src>,
+}
+
+#[derive(Debug, PartialEq)]
 pub enum AstStmt<'src> {
     Expr {
         expr: AstExpr<'src>,
@@ -219,22 +230,18 @@ pub enum AstStmt<'src> {
         target: AstExpr<'src>,
         assigned: AstExpr<'src>,
     },
-    FnDef {
-        name: AstLiteral<'src>,
-        args: Vec<AstLiteral<'src>>,
-        body: AstBlock<'src>,
-        return_type: TypeAnnotation<'src>,
-    },
+    FnDef(FnDef<'src>),
     StructDef {
         name: AstLiteral<'src>,
         fields: Vec<AstLiteral<'src>>,
+        methods: Vec<FnDef<'src>>,
     },
 }
 
 impl std::fmt::Display for AstStmt<'_> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Self::StructDef { name, fields } => {
+            Self::StructDef { name, fields, .. } => {
                 let fields = fields
                     .iter()
                     .map(|a| format!("    {}", a.to_string()))
@@ -242,12 +249,12 @@ impl std::fmt::Display for AstStmt<'_> {
                     .join("\n");
                 write!(f, "struct {}:\n{}", name, fields)
             }
-            Self::FnDef {
+            Self::FnDef(FnDef {
                 name,
                 args,
                 body,
                 return_type,
-            } => {
+            }) => {
                 // TODO: Make this efficient
                 let args_str = args
                     .iter()
@@ -285,5 +292,23 @@ impl<'src> std::fmt::Display for AstBlock<'src> {
             str.push_str(format!("{}{}\n", spaces, stmt).as_str());
         }
         write!(f, "{}", str)
+    }
+}
+
+#[derive(Debug, PartialEq)]
+pub(super) struct AttrAccess<'src> {
+    pub attribute: AstLiteral<'src>,
+    pub expr: Box<AstExpr<'src>>,
+}
+
+impl std::fmt::Display for AttrAccess<'_> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}.{}", self.expr, self.attribute)
+    }
+}
+
+impl<'src> From<AttrAccess<'src>> for AstExpr<'src> {
+    fn from(value: AttrAccess<'src>) -> Self {
+        AstExpr::AttrAccessExpr(value)
     }
 }
