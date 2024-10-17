@@ -13,10 +13,14 @@ pub enum Token<'src> {
     StrLiteral(&'src str),
     Ident(&'src str),
 
+    Bar,
+
     Newline,
 
     LParen,
     RParen,
+    LSquareBrace,
+    RSquareBrace,
 
     Add,
     Sub,
@@ -74,8 +78,12 @@ impl std::fmt::Display for Token<'_> {
                 Self::Indent => return write!(f, "INDENT",),
                 Self::Dedent => return write!(f, "DEDENT",),
 
+                Self::Bar => "|",
+
                 Self::LParen => "(",
                 Self::RParen => ")",
+                Self::LSquareBrace => "[",
+                Self::RSquareBrace => "]",
 
                 Self::Add => "+",
                 Self::Sub => "-",

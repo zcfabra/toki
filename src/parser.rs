@@ -24,6 +24,8 @@ pub enum ParseErr {
     UnexpectedStmt(usize, usize),
 
     ExpectedTypeAnnotation(usize, usize),
+    UnexpectedMut(usize, usize),
+
     ExpectedNewline(usize, usize),
     ExpectedSemi(usize, usize),
     ExpectedColon(usize, usize),
@@ -295,7 +297,7 @@ where
     let args = parse_fn_args(tokens)?;
 
     eat(tokens, Token::Arrow)?;
-    let return_type = parse_type_decl(tokens)?;
+    let return_type = parse_type_decl(tokens, true)?;
 
     eat(tokens, Token::Colon)?;
     eat(tokens, Token::Newline)?;
@@ -311,34 +313,74 @@ where
     });
 }
 
-fn parse_type_decl<'src, I>(tokens: &mut Peekable<I>) -> Result<TypeAnnotation<'src>>
+fn parse_type_decl<'src, I>(tokens: &mut Peekable<I>, can_be_mut: bool) -> Result<TypeAnnotation<'src>>
 where
     I: Iterator<Item = TokenIter<'src>>,
 {
-    let is_mut = if matches!(tokens.peek(), Some(Ok((_, Token::Mut)))) {
-        tokens.next();
-        true
-    } else {
-        false
-    };
+    let mut is_mut = false;
 
-    let (ix, tok) = match tokens.next() {
-        Some(Ok(spanned)) => spanned,
-        Some(Err(e)) => return Err(ParseErr::LexErr(e)),
-        None => return Err(ParseErr::UnexpectedEnd),
-    };
-
-    Ok(match tok {
-        Token::Ident(id) => {
-            let type_ = TypeAnnotation::Dynamic(id);
-            if is_mut {
-                TypeAnnotation::Mut(Box::new(type_))
-            } else {
-                type_
-            }
+    if matches!(tokens.peek(), Some(Ok((_, Token::Mut)))) {
+        if !can_be_mut {
+            let (ix, tok) = get_next_token(tokens)?;
+            return Err(ParseErr::UnexpectedMut(ix, tok.src_len()));
         }
+
+        tokens.next();
+        is_mut = true;
+    }
+
+    let mut lhs = parse_type_name(tokens)?;
+
+    loop {
+        if !matches!(tokens.peek(), Some(Ok((_, Token::LSquareBrace)))) {
+            break;
+        }
+
+        eat(tokens, Token::LSquareBrace)?;
+
+        let can_inner_be_mut = can_be_mut && !is_mut;
+        let params = parse_type_params(tokens, can_inner_be_mut)?;
+        lhs = TypeAnnotation::Parameterized {
+            parent: Box::new(lhs),
+            params,
+        };
+    }
+
+    let type_annotation = if is_mut {
+        TypeAnnotation::Mut(Box::new(lhs))
+    } else {
+        lhs
+    };
+    Ok(type_annotation)
+}
+
+fn parse_type_params<'src, I>(tokens: &mut Peekable<I>, can_be_mut: bool) -> Result<Vec<TypeAnnotation<'src>>>
+where
+    I: Iterator<Item = TokenIter<'src>>,
+{
+    let mut params = Vec::new();
+    params.push(parse_type_decl(tokens, can_be_mut)?);
+
+    while let Some(Ok((_, Token::Comma))) = tokens.peek() {
+        eat(tokens, Token::Comma)?;
+        params.push(parse_type_decl(tokens, can_be_mut)?);
+    }
+
+    eat(tokens, Token::RSquareBrace)?;
+
+    Ok(params)
+}
+
+fn parse_type_name<'src, I>(tokens: &mut Peekable<I>) -> Result<TypeAnnotation<'src>>
+where
+    I: Iterator<Item = TokenIter<'src>>,
+{
+    let (ix, tok) = get_next_token(tokens)?;
+    let type_annotation = match tok {
+        Token::Ident(name) => TypeAnnotation::Dynamic(name),
         _ => return Err(ParseErr::ExpectedTypeAnnotation(ix, tok.src_len())),
-    })
+    };
+    Ok(type_annotation)
 }
 
 pub fn expr_has_semi(expr: &AstExpr<'_>, has_semi_next: bool) -> bool {
@@ -598,7 +640,7 @@ where
     // Consume the ':'
     eat(tokens, Token::Colon)?;
 
-    Ok(parse_type_decl(tokens)?)
+    Ok(parse_type_decl(tokens, true)?)
 }
 
 fn eat<'src, I>(tokens: &mut Peekable<I>, expected_type: Token) -> Result<()>
@@ -651,4 +693,42 @@ fn test_parse_add_multi() {
         parse_expr(&mut toks, Precedence::Lowest, 0, ParseContext::new()),
         Ok(AstExpr::BinExpr(expected))
     );
+}
+
+#[test]
+fn test_parse_type_def() {
+    let mut toks = vec![Token::Mut, Token::Ident("int"), Token::Bar, Token::Ident("bool")]
+        .into_iter()
+        .enumerate()
+        .map(|t| Ok(t))
+        .peekable();
+
+    let out = parse_type_decl(&mut toks, true);
+
+    let expected = TypeAnnotation::Mut(Box::new(TypeAnnotation::Dynamic("int")));
+    assert_eq!(out, Ok(expected));
+}
+
+#[test]
+fn test_parse_type_def_param() {
+    let mut toks = vec![
+        Token::Ident("Result"),
+        Token::LSquareBrace,
+        Token::Ident("int"),
+        Token::Comma,
+        Token::Ident("str"),
+        Token::RSquareBrace,
+    ]
+    .into_iter()
+    .enumerate()
+    .map(|t| Ok(t))
+    .peekable();
+
+    let out = parse_type_decl(&mut toks, true);
+
+    let expected = TypeAnnotation::Parameterized {
+        params: vec![TypeAnnotation::Dynamic("int"), TypeAnnotation::Dynamic("str")],
+        parent: Box::new(TypeAnnotation::Dynamic("Result")),
+    };
+    assert_eq!(out, Ok(expected));
 }

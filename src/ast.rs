@@ -6,7 +6,12 @@ pub enum TypeAnnotation<'src> {
     Str,
     Bool,
     Dynamic(&'src str),
+    Union(Box<TypeAnnotation<'src>>, Box<TypeAnnotation<'src>>),
     Mut(Box<TypeAnnotation<'src>>),
+    Parameterized {
+        parent: Box<TypeAnnotation<'src>>,
+        params: Vec<TypeAnnotation<'src>>,
+    },
 }
 
 impl std::fmt::Display for TypeAnnotation<'_> {
@@ -15,11 +20,16 @@ impl std::fmt::Display for TypeAnnotation<'_> {
             f,
             "{}",
             match self {
+                Self::Union(l, r) => return write!(f, "{} | {}", l, r),
                 Self::Int => "int",
                 Self::Str => "str",
                 Self::Bool => "bool",
                 Self::Dynamic(d) => d,
                 Self::Mut(t) => return write!(f, "mut {}", t),
+                Self::Parameterized { parent, params } => {
+                    let params = params.iter().map(|p| p.to_string()).collect::<Vec<_>>().join(", ");
+                    return write!(f, "{}[{}]", parent, params);
+                }
             }
         )
     }
@@ -219,6 +229,13 @@ pub struct FnDef<'src> {
     pub return_type: TypeAnnotation<'src>,
 }
 
+impl std::fmt::Display for FnDef<'_> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let args = self.args.iter().map(|a| format!("{}", a)).collect::<Vec<_>>().join(",");
+        write!(f, "def {}({}) -> {}:\n{}", self.name, args, self.return_type, self.body)
+    }
+}
+
 #[derive(Debug, PartialEq)]
 pub enum AstStmt<'src> {
     Expr {
@@ -241,13 +258,14 @@ pub enum AstStmt<'src> {
 impl std::fmt::Display for AstStmt<'_> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Self::StructDef { name, fields, .. } => {
+            Self::StructDef { name, fields, methods } => {
                 let fields = fields
                     .iter()
                     .map(|a| format!("    {}", a.to_string()))
                     .collect::<Vec<_>>()
                     .join("\n");
-                write!(f, "struct {}:\n{}", name, fields)
+                let methods = methods.iter().map(|m| format!("    {}", m)).collect::<String>();
+                write!(f, "struct {}:\n{}\n\n{}", name, fields, methods)
             }
             Self::FnDef(FnDef {
                 name,
@@ -296,7 +314,7 @@ impl<'src> std::fmt::Display for AstBlock<'src> {
 }
 
 #[derive(Debug, PartialEq)]
-pub(super) struct AttrAccess<'src> {
+pub struct AttrAccess<'src> {
     pub attribute: AstLiteral<'src>,
     pub expr: Box<AstExpr<'src>>,
 }

@@ -101,10 +101,14 @@ impl<'src> Iterator for Lexer<'src> {
             let started = match c {
                 '(' => return Some(Ok((c_at, Token::LParen))),
                 ')' => return Some(Ok((c_at, Token::RParen))),
+                '[' => return Some(Ok((c_at, Token::LSquareBrace))),
+                ']' => return Some(Ok((c_at, Token::RSquareBrace))),
+
                 ':' => return Some(Ok((c_at, Token::Colon))),
                 ';' => return Some(Ok((c_at, Token::Semicolon))),
                 ',' => return Some(Ok((c_at, Token::Comma))),
                 '.' => return Some(Ok((c_at, Token::Dot))),
+                '|' => return Some(Ok((c_at, Token::Bar))),
 
                 '-' => Started::Minus,
                 '+' => Started::IfEqualElse(Token::Add, Token::AddEq),

@@ -1,52 +1,52 @@
 use crate::ast::AstBlock;
+use crate::lexer::LexErr;
 use crate::parser::ParseErr;
 
 // TODO: Extract the print formatting stuff
 
-pub fn report<'src>(
-    parsed: Result<AstBlock<'src>, ParseErr>,
-    src: &'src str,
-) -> Result<AstBlock<'src>, String> {
+pub fn report<'src>(parsed: Result<AstBlock<'src>, ParseErr>, src: &'src str) -> Result<AstBlock<'src>, String> {
     let err = match parsed {
         Err(e) => e,
         Ok(r) => return Ok(r),
     };
 
     Err(match err {
-        ParseErr::InvalidExpressionStart(ix, len) => {
-            print_err(src, "Expected Expression at Position", ix, len)
+        ParseErr::InvalidExpressionStart(ix, len) => print_err(src, "Expected Expression at Position", ix, len),
+        ParseErr::ExpectedSemi(ix, len) => print_err(src, "Expected Semicolon at Position", ix, len),
+        ParseErr::ExpectedTypeAnnotation(ix, len) => {
+            print_err(src, "Expected Valid Type In Annotation at Position", ix, len)
         }
-        ParseErr::ExpectedSemi(ix, len) => {
-            print_err(src, "Expected Semicolon at Position", ix, len)
-        }
-        ParseErr::ExpectedTypeAnnotation(ix, len) => print_err(
+        ParseErr::ExpectedColon(ix, len) => print_err(src, "Expected Colon Starting Block", ix, len),
+        ParseErr::UnexpectedStmt(ix, len) => print_err(
             src,
-            "Expected Valid Type In Annotation at Position",
+            "Unexpected Statement (Previous statement may be missing a semicolon)",
             ix,
             len,
         ),
-        ParseErr::ExpectedColon(ix, len) => {
-            print_err(src, "Expected Colon Starting Block", ix, len)
-        }
-        ParseErr::UnexpectedStmt(ix, len) => {
-            print_err(src, "Unexpected Statement (Previous statement may be missing a semicolon)", ix, len)
-        }
         ParseErr::UnexpectedIndent(ix, len, expected_level) => print_err(
             src,
-            format!(
-                "Unexpected Indent Level At Position (Expected {})",
-                expected_level
-            )
-            .as_str(),
+            format!("Unexpected Indent Level At Position (Expected {})", expected_level).as_str(),
             ix,
             len,
         ),
         ParseErr::ExpectedToken(ix, len, t) => {
             print_err(src, format!("Expected '{}' at Position", t).as_str(), ix, len)
         }
-        e => {
-            println!("Encountered {:?}", e);
-            todo!()
+        ParseErr::UnexpectedMut(ix, len) => {
+            let msg = format!("Unexpected `mut` - Only One Is Allowed Per Type. Encountered at Position");
+            print_err(src, msg.as_str(), ix, len)
+        }
+        ParseErr::UnexpectedEnd => "Reached Unexpected End Of Input".to_string(),
+        ParseErr::LexErr(err) => match err {
+            LexErr::UnknownToken(ix, _) | LexErr::UnterminatedString(ix) => print_err(src, "Lex Err", ix, 1),
+        },
+        ParseErr::ExpectedFnName(ix, len) => {
+            let msg = format!("Expected Function Name at Position");
+            print_err(src, msg.as_str(), ix, len)
+        }
+        ParseErr::ExpectedNewline(ix, len) => {
+            let msg = format!("Eepected Newline at Position");
+            print_err(src, msg.as_str(), ix, len)
         }
     })
 }
@@ -86,11 +86,7 @@ fn extract_line(s: &str, ix: usize) -> (&str, usize, usize) {
 fn highlight_line(line: &str, ix: usize, token_len: usize) -> String {
     let mut s = line.to_string();
 
-    let start = line
-        .char_indices()
-        .nth(ix)
-        .map(|(pos, _)| pos)
-        .unwrap_or(ix);
+    let start = line.char_indices().nth(ix).map(|(pos, _)| pos).unwrap_or(ix);
 
     let end = line
         .char_indices()
@@ -98,25 +94,16 @@ fn highlight_line(line: &str, ix: usize, token_len: usize) -> String {
         .map(|(pos, _)| pos)
         .unwrap_or(line.len());
 
-    s.replace_range(
-        start..end,
-        format!("\x1b[91m{}\x1b[0m", &line[start..end]).as_str(),
-    );
+    s.replace_range(start..end, format!("\x1b[91m{}\x1b[0m", &line[start..end]).as_str());
     return s;
 }
 
 fn underline_line(line: &str, ix: usize, token_len: usize) -> String {
-    let mut s = std::iter::repeat(" ")
-        .take(line.chars().count())
-        .collect::<String>();
+    let mut s = std::iter::repeat(" ").take(line.chars().count()).collect::<String>();
     let highlight = std::iter::repeat("^").take(token_len).collect::<String>();
     let red = format!("\x1b[91m{}\x1b[0m", highlight);
 
-    let start = line
-        .char_indices()
-        .nth(ix)
-        .map(|(pos, _)| pos)
-        .unwrap_or(ix);
+    let start = line.char_indices().nth(ix).map(|(pos, _)| pos).unwrap_or(ix);
 
     let end = line
         .char_indices()

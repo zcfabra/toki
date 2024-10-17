@@ -20,13 +20,13 @@ fn main() {
     let mut src = String::new();
     f.read_to_string(&mut src).expect("Couldn't Read String");
 
-    for tok in Lexer::new(&src) {
-        if tok.is_ok() {
-            let (_, t) = tok.expect("");
-            print!("[{}]", t);
-        }
-    }
-    println!();
+    // for tok in Lexer::new(&src) {
+    //     if tok.is_ok() {
+    //         let (_, t) = tok.expect("");
+    //         print!("[{}]", t);
+    //     }
+    // }
+    // println!();
 
     match report(parse(Lexer::new(&src)), &src) {
         Ok(parsed) => {
